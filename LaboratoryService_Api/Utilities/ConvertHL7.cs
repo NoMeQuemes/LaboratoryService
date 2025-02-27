@@ -1,7 +1,103 @@
-﻿namespace LaboratoryService_Api.Utilities
+﻿using NHapi.Model.V251.Message;
+using NHapi.Model.V251.Segment;
+using NHapi.Model.V251.Datatype;
+using NHapi.Base.Parser;
+using System;
+using System.Collections.Generic;
+using LaboratoryService_Api.Models;
+
+namespace LaboratoryService_Api.Utilities
 {
     public class ConvertHL7
     {
+        public static string ConvertToHL7(LaboratorioRegistro registro)
+        {
+            try
+            {
+                // Crear el mensaje HL7
+                var ormMessage = new ORM_O01();
 
+                // MSH Segment
+                var msh = ormMessage.MSH;
+                msh.FieldSeparator.Value = "|";
+                msh.EncodingCharacters.Value = "^~\\&";
+                msh.SendingApplication.NamespaceID.Value = "LaboratoryService";
+                msh.SendingFacility.NamespaceID.Value = "Hospital";
+                msh.ReceivingApplication.NamespaceID.Value = "AMSAlinIQ";
+                msh.ReceivingFacility.NamespaceID.Value = "Laboratory";
+                msh.DateTimeOfMessage.Time.Value = DateTime.Now.ToString("yyyyMMddHHmmss");
+                msh.MessageType.MessageCode.Value = "OML"; // Tipo de mensaje OML
+                msh.MessageType.TriggerEvent.Value = "O33"; // Evento O33
+                msh.MessageControlID.Value = "1";
+                msh.ProcessingID.ProcessingID.Value = "P";
+                msh.VersionID.VersionID.Value = "2.5.1";
+
+                // PID Segment
+                var pid = ormMessage.PATIENT.PID;
+                pid.SetIDPID.Value = "1";
+                pid.PatientID.IDNumber.Value = registro.PacienteID.ToString();
+                var patientName = pid.GetPatientName(0);
+                patientName.GivenName.Value = registro.Pacientes.Nombre.Trim();
+                patientName.FamilyName.Surname.Value = registro.Pacientes.Apellido.Trim();
+                pid.DateTimeOfBirth.Time.Value = registro.Pacientes.FechadeNacimiento?.ToString("yyyyMMdd");
+                pid.AdministrativeSex.Value = registro.Pacientes.IdSexo == 1 ? "M" : "F"; // Asumiendo 1 para masculino y 2 para femenino
+
+                // ORC Segment (Grupos)
+                var orc = ormMessage.GetORDER(0).ORC;
+                orc.OrderControl.Value = "NW"; // Nuevo pedido
+                orc.PlacerOrderNumber.EntityIdentifier.Value = registro.LaboratorioRegistroID.ToString();
+                orc.FillerOrderNumber.EntityIdentifier.Value = registro.CodigoBarra;
+
+                // Agregar grupos al ORC
+                foreach (var detalle in registro.LabRegistroDetalle)
+                {
+                    if (detalle.LabGrupoPracticaID != null && detalle.LabGrupoPracticaID > 0)
+                    {
+                        var groupIdentifier = orc.GetOrderingFacilityName(orc.OrderingFacilityNameRepetitionsUsed);
+                        groupIdentifier.OrganizationIdentifier.Value = detalle.LabGrupoPracticaID.ToString();
+                        groupIdentifier.OrganizationName.Value = detalle.LaboratorioPracticas.Nombre;
+                    }
+                }
+
+
+
+                // Iterar sobre cada práctica y agregar un nuevo ORDER con su propio OBR
+                foreach (var detalle in registro.LabRegistroDetalle)
+                {
+                    // Agregar un nuevo ORDER para cada práctica
+                    var order = ormMessage.AddORDER();
+                    var obr = order.ORDER_DETAIL.OBR; // Obtener el OBR dentro del ORDER_DETAIL
+
+                    obr.SetIDOBR.Value = (ormMessage.ORDERRepetitionsUsed).ToString(); // ID único por práctica
+                    obr.PlacerOrderNumber.EntityIdentifier.Value = registro.LaboratorioRegistroID.ToString();
+                    obr.FillerOrderNumber.EntityIdentifier.Value = registro.CodigoBarra;
+                    obr.UniversalServiceIdentifier.Identifier.Value = detalle.LaboratorioPracticasID.ToString();
+                    obr.UniversalServiceIdentifier.Text.Value = detalle.LaboratorioPracticas.Nombre;
+                    obr.RequestedDateTime.Time.Value = registro.FechaCrea?.ToString("yyyyMMddHHmmss");
+                }
+
+
+                // Convertir el mensaje a string HL7
+                var parser = new PipeParser();
+                string hl7Message = parser.Encode(ormMessage);
+
+                // Asegurar que los segmentos estén separados por \r y el mensaje termine con \n
+                hl7Message = hl7Message.Replace("\r\n", "\r").Replace("\n", "\r"); // Normalizar saltos de línea
+                if (!hl7Message.EndsWith("\r"))
+                {
+                    hl7Message += "\r"; // Asegurar que el mensaje termine con \r
+                }
+                hl7Message += "\n"; // Añadir \n al final del mensaje
+
+                string mllpMessage = $"\x0B{hl7Message}\x1C\r"; // Encapsulado con MLLP
+
+
+                return mllpMessage;
+            }
+            catch (Exception ex)
+            {
+                throw new Exception("Error al convertir a HL7: " + ex.Message);
+            }
+        }
     }
 }
