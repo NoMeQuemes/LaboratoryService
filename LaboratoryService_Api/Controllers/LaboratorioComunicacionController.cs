@@ -34,64 +34,17 @@ namespace LaboratoryService_Api.Controllers
             _tcpManager = tcpManager;
         }
 
-        [HttpPost("buscar-pedido")]
-        public async Task<ActionResult<ApiResponse>> BuscarPedido([FromBody] OrderRequest request)
-        {
-            if (request == null || request.orderID <= 0)
-                return BadRequest("ID del pedido inválido."); //Verifica que venga algún id desde Zismed
-
-            //Busca en la base de datos el pedido al cual se le quiere cargar los resulSearados
-            try
-            {
-                _response.Resultado = await _context.LaboratorioRegistro
-                                        .Where(o => o.LaboratorioRegistroID == request.orderID)
-                                        .Include(p => p.Pacientes)
-                                        .Include(d => d.Prestadores)
-                                        .Include(i => i.Instituciones)
-                                        .Include(l => l.LabRegistroDetalle)
-                                            .ThenInclude(a => a.LaboratorioPracticas)
-                                        .Select(o => new
-                                        {
-                                            o.LaboratorioRegistroID,
-                                            Paciente = o.Pacientes.Nombre.Trim(),
-                                            Prestador = o.Prestadores.Nombre.Trim(),
-                                            Fecha = o.FechaCrea,
-                                            Institucion = o.Instituciones.Nombre,
-                                            o.CodigoBarra,
-                                            Practicas = o.LabRegistroDetalle
-                                                .Where(s => s.LaboratorioRegistroID == request.orderID)
-                                                .Select(s => new
-                                                {
-                                                    s.LabGrupoPracticaID,
-                                                    NombreGrupoPractica = s.LabGrupoPracticaID != 0 ? s.LaboratorioPracticas.Nombre : null,
-                                                    s.LaboratorioPracticasID,
-                                                    NombrePractica = s.LaboratorioPracticas.Nombre,
-                                                    s.CodigoTubo
-                                                })
-                                                .DefaultIfEmpty()
-                                                .ToList()
-                                        })
-                                        .FirstOrDefaultAsync();
-
-                _response.statusCode = HttpStatusCode.OK;
-
-                return Ok(_response);
-
-            }
-            catch (Exception ex)
-            {
-                _response.IsExitoso = false;
-                _response.ErrorMessages = new List<string>() { ex.ToString() };
-            }
-
-            return _response;
-        }
-
-        [HttpPost("enviar-pedido-hl7")]
+        [HttpPost]
+        [Route("enviarPedidoHl7")]
         public async Task<ActionResult<ApiResponse>> EnviarPedidoHL7([FromBody] OrderRequest request)
         {
             if (request == null || request.orderID <= 0)
-                return BadRequest("ID del pedido inválido.");
+            {
+                _response.statusCode = HttpStatusCode.BadRequest;
+                _response.IsExitoso = false;
+                _response.ErrorMessages = new List<string>() { "Id del pedidido invalido" };
+                return _response;
+            }
 
             try
             {
@@ -105,12 +58,16 @@ namespace LaboratoryService_Api.Controllers
                                         .FirstOrDefaultAsync();
 
                 if (registro == null)
-                    return NotFound("Pedido no encontrado.");
+                {
+                    _response.statusCode = HttpStatusCode.NotFound;
+                    _response.IsExitoso = false;
+                    _response.ErrorMessages = new List<string>() { "Pedido no encontrado." };
+                    return (_response);
+                }
 
-                // Convertir a HL7
-                string hl7Message = ConvertHL7.ConvertToHL7(registro);
-
-                _tcpManager.SendMessage(hl7Message);
+                
+                string hl7Message = ConvertHL7.ConvertToHL7(registro); // Convierte el resultado de la BD en un mensaje HL7
+                _tcpManager.SendMessage(hl7Message); //Envía el mensaje HL7 al servidor
 
 
                 _response.Resultado = hl7Message;
@@ -119,9 +76,10 @@ namespace LaboratoryService_Api.Controllers
             }
             catch (Exception ex)
             {
+                _response.statusCode = HttpStatusCode.InternalServerError;
                 _response.IsExitoso = false;
                 _response.ErrorMessages = new List<string>() { ex.ToString() };
-                return StatusCode(500, _response);
+                return (_response);
             }
         }
     }
