@@ -9,6 +9,7 @@ namespace LaboratoryService_Api.Models
         [UIHint("Pacientes")]
         public int PacienteID { get; set; }
 
+
         [StringLength(11)]
         public string Cuil { get; set; }
 
@@ -34,6 +35,8 @@ namespace LaboratoryService_Api.Models
 
         [Display(Name = "Sexo")]
         public byte? IdSexo { get; set; }
+        [ForeignKey("IdSexo")]
+        public virtual Sexo Sexo { get; set; }
 
         [Display(Name = "Genero")]
         public byte? IdSexoGenero { get; set; }

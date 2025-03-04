@@ -5,11 +5,6 @@ using System.Diagnostics;
 using System.Text.Json.Serialization;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
-using NHapi.Base.Parser;
-using NHapi.Base;
-using NHapi.Model.V251.Message;
-using NHapi.Model.V251.Segment;
-using NHapi.Model.V251.Group;
 using LaboratoryService_Api.Models;
 using System.Net;
 using LaboratoryService_Api.Utilities;
@@ -51,6 +46,7 @@ namespace LaboratoryService_Api.Controllers
                 var registro = await _context.LaboratorioRegistro
                                         .Where(o => o.LaboratorioRegistroID == request.orderID)
                                         .Include(p => p.Pacientes)
+                                            .ThenInclude(s => s.Sexo)
                                         .Include(d => d.Prestadores)
                                         .Include(i => i.Instituciones)
                                         .Include(l => l.LabRegistroDetalle)

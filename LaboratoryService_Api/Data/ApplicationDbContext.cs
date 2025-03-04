@@ -1,5 +1,6 @@
 ﻿using LaboratoryService_Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Internal;
 
 namespace LaboratoryService_Api.Data
 {
@@ -17,6 +18,7 @@ namespace LaboratoryService_Api.Data
         public DbSet<Pacientes> Pacientes { get; set;}
         public DbSet<Prestadores> Prestadores { get; set;}
         public DbSet<Instituciones> Instituciones { get; set;}
+        public DbSet<Sexo> Sexo { get; set;}
 
         //Relación sin necesidad de una FK en LaboratorioRegistro. Esto usa el potencial de EF sin usar consultas toscas
         protected override void OnModelCreating(ModelBuilder modelBuilder)
