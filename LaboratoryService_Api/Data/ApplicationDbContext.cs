@@ -19,6 +19,7 @@ namespace LaboratoryService_Api.Data
         public DbSet<Prestadores> Prestadores { get; set;}
         public DbSet<Instituciones> Instituciones { get; set;}
         public DbSet<Sexo> Sexo { get; set;}
+        public DbSet<Internaciones> Internaciones { get; set;}
 
         //Relación sin necesidad de una FK en LaboratorioRegistro. Esto usa el potencial de EF sin usar consultas toscas
         protected override void OnModelCreating(ModelBuilder modelBuilder)

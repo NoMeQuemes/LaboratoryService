@@ -13,6 +13,9 @@ namespace LaboratoryService_Api.Models
 
         public int? TurnoID { get; set; }
         public int? InternacionID { get; set; }
+        [ForeignKey("InternacionID")]
+        public virtual Internaciones Internaciones { get; set; }
+
         public int? GuardiaRegistroID { get; set; }
 
         public int PracticasOrigenID { get; set; }
