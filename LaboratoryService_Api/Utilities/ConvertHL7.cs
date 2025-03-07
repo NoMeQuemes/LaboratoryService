@@ -21,7 +21,11 @@ namespace LaboratoryService_Api.Utilities
                 string direccionPaciente = registro.Pacientes.Residencia_Localidad != null ? registro.Pacientes.Residencia_Localidad.Trim() : "";
                 string telefonoPaciente = registro.Pacientes.Telefono ?? "|";
                 string tipoPaciente = registro.InternacionID != null ? "I" : "O";
-                string notasPaciente = registro.Internaciones.Observaciones.Trim() ?? "";
+                string notasPaciente = "";
+                if (registro.Internaciones != null )
+                {
+                    notasPaciente = registro.Internaciones.Observaciones.Trim() ?? "";
+                }
 
                 // Datos del prestador
 
@@ -42,18 +46,17 @@ namespace LaboratoryService_Api.Utilities
                 // Construcción de los segmentos
                 string MSH = $"MSH|^~\\&|LIS||AMS||{fechaActual}||OML^O33|{fechaActual}|P|2.5|||AL|NE\x0D";
                 string PID = $"PID|1||{documentoPaciente}||{nombrePaciente}||{fechaNacimiento}|{sexoPaciente}|||{direccionPaciente}||||{telefonoPaciente}|\x0D";
-                if(registro.Internaciones.Observaciones != null)
-                {
-                    string NTEPID = $"NTE|1|L1|{notasPaciente}\x0D";
-                }
+                string NTEPID = $"NTE|1|L|{notasPaciente}\x0D";
                 string PV1 = $"PV1|1|{tipoPaciente}|||{prestadorSolicita}|||{nombrePrestador}|\x0D";
                 string SPM1 = $"SPM|1|{gruposPractica}||SUERO\x0D";
-                string NTE = $"NTE|1|L|{registro.MotivoModificado ?? "Sin motivo"}\x0D";
                 string ORC = $"ORC|NW||{gruposPractica}|||||||||||||||||||\x0D";
                 string OBR = $"OBR|1|||{practicas}||||||||||{fechaActual}||||||||||LACHYBS|||^^^{fechaActual}^^R\x0D";
                 string SPM2 = "SPM|2|A61906H|A61906H|SGRE EDTA\x0D";
 
-                string hl7Message = $"{MSH}{PID}{PV1}{SPM1}{NTE}{ORC}{OBR}{SPM2}";
+                string hl7Message = $"{MSH}{PID}" +
+                    $"{
+                        (registro.Internaciones == null || registro.Internaciones.Observaciones == null ? "" : NTEPID)
+                        }{PV1}{SPM1}{ORC}{OBR}{SPM2}";
                 string mllpMessage = $"\x0B{hl7Message}\x1C\r";
 
                 Debug.WriteLine($"Mensaje HL7 generado: {mllpMessage}");
