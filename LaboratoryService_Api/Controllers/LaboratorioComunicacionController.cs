@@ -62,8 +62,11 @@ namespace LaboratoryService_Api.Controllers
                     return (_response);
                 }
 
-                
-                string hl7Message = ConvertHL7.ConvertToHL7(registro); // Convierte el resultado de la BD en un mensaje HL7
+                // Obtener las relaciones de grupos y prácticas desde LabGrupoPractica
+                var gruposPracticas = await _context.LabGrupoPracticas
+                                                    .ToListAsync();
+
+                string hl7Message = ConvertHL7.ConvertToHL7(registro, gruposPracticas); // Convierte el resultado de la BD en un mensaje HL7
                 _tcpManager.SendMessage(hl7Message); //Envía el mensaje HL7 al servidor
 
 
