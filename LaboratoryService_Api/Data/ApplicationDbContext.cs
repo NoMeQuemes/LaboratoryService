@@ -15,6 +15,7 @@ namespace LaboratoryService_Api.Data
         public DbSet<LabRegistroDetalle> LabRegistroDetalles { get; set;}
         public DbSet<LaboratorioPracticas> LaboratorioPracticas { get; set;}
         public DbSet<LaboratorioRegistro> LaboratorioRegistro { get; set;}
+        public DbSet<LabGrupoPractica> LabGrupoPracticas { get; set; }
         public DbSet<Pacientes> Pacientes { get; set;}
         public DbSet<Prestadores> Prestadores { get; set;}
         public DbSet<Instituciones> Instituciones { get; set;}
@@ -29,6 +30,20 @@ namespace LaboratoryService_Api.Data
                 .WithOne(d => d.LaboratorioRegistro)
                 .HasForeignKey(d => d.LaboratorioRegistroID)
                 .OnDelete(DeleteBehavior.Cascade);
+
+            // Configurar la relación entre LabGrupoPractica y LaboratorioPracticas (grupo)
+            modelBuilder.Entity<LabGrupoPractica>()
+                .HasOne(lgp => lgp.LaboratorioPracticasGrup)
+                .WithMany()
+                .HasForeignKey(lgp => lgp.LaboratorioPracticasIDGrupo)
+                .OnDelete(DeleteBehavior.Restrict); // O el comportamiento que prefieras
+
+            //// Configurar la relación entre LabGrupoPractica y LaboratorioPracticas (práctica)
+            //modelBuilder.Entity<LabGrupoPractica>()
+            //    .HasOne(lgp => lgp.LaboratorioPracticasPrac)
+            //    .WithMany()
+            //    .HasForeignKey(lgp => lgp.LaboratorioPracticasID)
+            //    .OnDelete(DeleteBehavior.Restrict); // O el comportamiento que prefieras
         }
 
 
