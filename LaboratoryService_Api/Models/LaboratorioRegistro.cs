@@ -12,6 +12,8 @@ namespace LaboratoryService_Api.Models
         public bool Urgente { get; set; }
 
         public int? TurnoID { get; set; }
+        [ForeignKey("TurnoID")]
+        public virtual Turnos Turnos { get; set; }
         public int? InternacionID { get; set; }
         [ForeignKey("InternacionID")]
         public virtual Internaciones Internaciones { get; set; }

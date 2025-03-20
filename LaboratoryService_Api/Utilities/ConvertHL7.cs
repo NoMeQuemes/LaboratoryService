@@ -1,6 +1,9 @@
 ﻿using System;
 using LaboratoryService_Api.Models;
 using System.Diagnostics;
+using System.Text;
+using System.Collections.Generic;
+using System.Linq;
 
 namespace LaboratoryService_Api.Utilities
 {
@@ -10,48 +13,39 @@ namespace LaboratoryService_Api.Utilities
         {
             try
             {
-                // Obtener fecha actual en el formato requerido
-                string fechaActual = DateTime.Now.ToString("yyyyMMddHHmmss");
+                // Fecha del mensaje
+                string fechaMensaje = DateTime.Now.ToString("yyyyMMddHHmmss");
+                string idMensaje = registro.LaboratorioRegistroID.ToString();
 
                 // Datos del paciente
                 string nombrePaciente = $"{registro.Pacientes.Apellido.Trim()}^{registro.Pacientes.Nombre.Trim()}";
-                string documentoPaciente = registro.Pacientes.Documento.Trim();
+                string documentoPaciente = registro.Pacientes.Documento?.Trim() ?? "";
                 string fechaNacimiento = registro.Pacientes.FechadeNacimiento?.ToString("yyyyMMdd") ?? "";
                 string sexoPaciente = registro.Pacientes.IdSexo == 1 ? "M" : (registro.Pacientes.IdSexo == 2 ? "F" : "O");
-                string direccionPaciente = registro.Pacientes.Residencia_Localidad != null ? registro.Pacientes.Residencia_Localidad.Trim() : "";
-                string telefonoPaciente = registro.Pacientes.Telefono ?? "|";
-                string tipoPaciente = registro.InternacionID != null ? "I" : "O";
-                string notasPaciente = registro.Internaciones.Observaciones.Trim() ?? "";
+                string direccionPaciente = registro.Pacientes.Residencia_Localidad?.Trim() ?? "";
+                string telefonoPaciente = registro.Pacientes.Telefono?.Trim() ?? "";
+                string notasPaciente = registro.Internaciones?.Observaciones?.Trim() ?? "";
 
-                // Datos del prestador
-
-                string nombrePrestador = registro.Prestadores != null? $"{registro.Prestadores.PrestadorID}^{registro.Prestadores?.Nombre.Trim()}" : "";
+                // Datos de la internación
+                string tipoPaciente = registro.InternacionID != null ? "1" : "0";
+                string fechaAdmision = registro.InternacionID != null
+                    ? registro.Internaciones.FechaCrea?.ToString("yyyyMMddHHmmss") ?? ""
+                    : registro.TurnoID != null
+                        ? registro.Turnos.FechaCrea?.ToString("yyyyMMddHHmmss") ?? ""
+                        : "";
+                string ubicacionPaciente = "CHIR"; //Esto hay que hacerlo dínamico
+                string institucionPaciente = registro.Instituciones.Nombre ?? "|";
+                string nombrePrestador = registro.Prestadores != null ? $"{registro.Prestadores.PrestadorID}^{registro.Prestadores?.Nombre.Trim()}" : "";
                 string prestadorSolicita = registro.PrestadorSolicita.ToString();
 
-                // Datos de las prácticas
-                string practicas = string.Join("^", registro.LabRegistroDetalle
-                    .Select(detalle => detalle.LaboratorioPracticas.LaboratorioPracticasID)
-                    .Distinct());
-
-                // Datos de los grupos de práctica
-                string gruposPractica = string.Join("^", registro.LabRegistroDetalle
-                    .Where(detalle => detalle.LabGrupoPracticaID.HasValue)
-                    .Select(detalle => detalle.LabGrupoPracticaID.ToString())
-                    .Distinct());
-
-                // Construcción de los segmentos
-                string MSH = $"MSH|^~\\&|LIS||AMS||{fechaActual}||OML^O33|{fechaActual}|P|2.5|||AL|NE\x0D";
-                string PID = $"PID|1||{documentoPaciente}||{nombrePaciente}||{fechaNacimiento}|{sexoPaciente}|||{direccionPaciente}||||{telefonoPaciente}|\x0D";
-                if(registro.Internaciones.Observaciones != null)
-                {
-                    string NTEPID = $"NTE|1|L1|{notasPaciente}\x0D";
-                }
-                string PV1 = $"PV1|1|{tipoPaciente}|||{prestadorSolicita}|||{nombrePrestador}|\x0D";
-                string SPM1 = $"SPM|1|{gruposPractica}||SUERO\x0D";
-                string NTE = $"NTE|1|L|{registro.MotivoModificado ?? "Sin motivo"}\x0D";
-                string SPM2 = "SPM|2|A61906H|A61906H|SGRE EDTA\x0D";
-
-                string hl7Message = $"{MSH}{PID}{PV1}{SPM1}{NTE}{SPM2}";
+                // Datos del pedido
+                string codigoBarraPedido = registro.CodigoBarra ?? "|";
+                string tipoMuestra = "SUERO";
+                string codigoTubo = "123456";
+                string controlSolicitud = "NW";
+                string fechaPedido = registro.FechaCrea?.ToString("yyyyMMddHHmmss") ?? "|";
+                string laboratorioProcesa = "LAB";
+                string urgenciaPedido = Convert.ToInt32(registro.Urgente) == 1 ? "S" : "R";
 
                 var detallesPedido = registro.LabRegistroDetalle.ToList();
                 var gruposEnPedido = detallesPedido
@@ -60,6 +54,24 @@ namespace LaboratoryService_Api.Utilities
                     .Distinct()
                     .ToList();
 
+                // Construcción de los segmentos
+                string MSH = $"MSH|^~\\&|LIS||Abbott||{fechaMensaje}||OML^O33|{idMensaje}|P|2.5|||AL|NE\x0D";
+                string PID = $"PID|1||{documentoPaciente}||{nombrePaciente}||{fechaNacimiento}|{sexoPaciente}|||{direccionPaciente}||||||\x0D";
+                string NTEPID = $"NTE|1|L|{notasPaciente}\x0D";
+                string PV1 = $"PV1|1||{ubicacionPaciente}|||{fechaAdmision}|||{nombrePrestador}|||{institucionPaciente}||||||||{tipoPaciente}\x0D";
+                string SPM1 = $"SPM|1|{codigoBarraPedido}|{codigoTubo}|{tipoMuestra}\x0D";
+
+                var messageBuilder = new StringBuilder();
+                messageBuilder.Append(MSH)
+                              .Append(PID);
+                if (registro.Internaciones != null && registro.Internaciones.Observaciones != null)
+                {
+                    messageBuilder.Append(NTEPID);
+                }
+                messageBuilder.Append(PV1)
+                              .Append(SPM1);
+
+                // Construcción de ORC y OBR
                 if (gruposEnPedido.Any())
                 {
                     foreach (var grupoId in gruposEnPedido)
@@ -70,17 +82,11 @@ namespace LaboratoryService_Api.Utilities
                             .Distinct()
                             .ToList();
 
-                        if (practicasDelGrupo.Any())
+                        foreach (var practicaId in practicasDelGrupo)
                         {
-                            string SPM = $"SPM|1|{grupoId}||SUERO\x0D";
-                            hl7Message += SPM;
-
-                            foreach (var practicaId in practicasDelGrupo)
-                            {
-                                string ORC = $"ORC|NW||{grupoId}|||||||||||||||||||\x0D";
-                                string OBR = $"OBR|1|||{practicaId}||||||||||{fechaActual}||||||||||LACHYBS|||^^^{fechaActual}^^R\x0D";
-                                hl7Message += $"{ORC}{OBR}";
-                            }
+                            string ORC = $"ORC|{controlSolicitud}||{grupoId}|||||||||||||||||||||\x0D";
+                            string OBR = $"OBR|1|||{practicaId}||||||||||{fechaPedido}||{prestadorSolicita}||||||||{laboratorioProcesa}|||^^^20241115120405^^{urgenciaPedido}\r";
+                            messageBuilder.Append(ORC).Append(OBR);
                         }
                     }
                 }
@@ -92,28 +98,24 @@ namespace LaboratoryService_Api.Utilities
                         .Distinct()
                         .ToList();
 
-                    if (practicasIndividuales.Any())
+                    foreach (var practicaId in practicasIndividuales)
                     {
-                        string SPM = $"SPM|1|SIN_GRUPO||SUERO\x0D";
-                        hl7Message += SPM;
-
-                        foreach (var practicaId in practicasIndividuales)
-                        {
-                            string ORC = $"ORC|NW||{practicaId}|||||||||||||||||||\x0D";
-                            string OBR = $"OBR|1|||{practicaId}||||||||||{fechaActual}||||||||||LACHYBS|||^^^{fechaActual}^^R\x0D";
-                            hl7Message += $"{ORC}{OBR}";
-                        }
+                        string ORC = $"ORC|{controlSolicitud}||{practicaId}|||||||||||||||||||||\x0D";
+                        string OBR = $"OBR|1|||{practicaId}||||||||||{fechaPedido}||{prestadorSolicita}||||||||{laboratorioProcesa}|||^^^20241115120405^^{urgenciaPedido}\r";
+                        messageBuilder.Append(ORC).Append(OBR);
                     }
                 }
 
-
+                // Formatear mensaje en protocolo MLLP
+                string hl7Message = messageBuilder.ToString();
                 string mllpMessage = $"\x0B{hl7Message}\x1C\r";
 
-                Debug.WriteLine($"Mensaje HL7 generado: {mllpMessage}");
+                Debug.WriteLine($"Mensaje HL7 generado:\n{mllpMessage}");
                 return mllpMessage;
             }
             catch (Exception ex)
             {
+                Debug.WriteLine($"Error al generar HL7: {ex.Message}");
                 throw new Exception("Error al convertir a HL7: " + ex.Message);
             }
         }
