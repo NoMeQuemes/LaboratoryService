@@ -11,6 +11,8 @@ namespace LaboratoryService_Api.Models
         public int PacienteID { get; set; }
 
         public int ServicioID { get; set; }
+        [ForeignKey("ServicioID")]
+        public virtual Servicios Servicios { get; set; }
 
         public int ConsultorioID { get; set; }
 

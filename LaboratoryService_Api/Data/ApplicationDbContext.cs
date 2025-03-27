@@ -7,21 +7,23 @@ namespace LaboratoryService_Api.Data
     public class ApplicationDbContext : DbContext
     {
 
-        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) :base(options)
+        public ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : base(options)
         {
 
         }
 
-        public DbSet<LabRegistroDetalle> LabRegistroDetalles { get; set;}
-        public DbSet<LaboratorioPracticas> LaboratorioPracticas { get; set;}
-        public DbSet<LaboratorioRegistro> LaboratorioRegistro { get; set;}
+        public DbSet<LabRegistroDetalle> LabRegistroDetalles { get; set; }
+        public DbSet<LaboratorioPracticas> LaboratorioPracticas { get; set; }
+        public DbSet<LaboratorioRegistro> LaboratorioRegistro { get; set; }
         public DbSet<LabGrupoPractica> LabGrupoPracticas { get; set; }
-        public DbSet<Pacientes> Pacientes { get; set;}
-        public DbSet<Prestadores> Prestadores { get; set;}
-        public DbSet<Instituciones> Instituciones { get; set;}
-        public DbSet<Sexo> Sexo { get; set;}
-        public DbSet<Internaciones> Internaciones { get; set;}
-        public DbSet<Turnos> Turnos { get; set;}
+        public DbSet<Pacientes> Pacientes { get; set; }
+        public DbSet<Prestadores> Prestadores { get; set; }
+        public DbSet<Instituciones> Instituciones { get; set; }
+        public DbSet<Sexo> Sexo { get; set; }
+        public DbSet<Internaciones> Internaciones { get; set; }
+        public DbSet<Turnos> Turnos { get; set; }
+        public DbSet<Habitaciones_Hospital> Habitaciones_Hospital { get; set; }
+        public DbSet<Servicios> Servicios { get; set; }
 
         //Relación sin necesidad de una FK en LaboratorioRegistro. Esto usa el potencial de EF sin usar consultas toscas
         protected override void OnModelCreating(ModelBuilder modelBuilder)

@@ -12,8 +12,11 @@ namespace LaboratoryService_Api.Models
         [UIHint("Pacientes")]
         public int PacienteID { get; set; }
 
+
         [Display(Name = "Habitaci¾n")]
         public int HabitacionID { get; set; }
+        [ForeignKey("HabitacionID")]
+        public virtual Habitaciones_Hospital Habitaciones_Hospital { get; set; }
 
         [Display(Name = "Cama")]
         public int CamaID { get; set; }
