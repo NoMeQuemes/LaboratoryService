@@ -52,7 +52,7 @@ namespace LaboratoryService_Api.Utilities
                 //string codigoTubo = "123456"; No se usa momentaneamente hasta implementarlo
                 string controlSolicitud = "NW";
                 string fechaPedido = registro.FechaCrea?.ToString("yyyyMMddHHmmss") ?? "|";
-                string laboratorioProcesa = "LAB";
+                string laboratorioProcesa = registro.Instituciones.Nombre.Trim();
                 string urgenciaPedido = Convert.ToInt32(registro.Urgente) == 1 ? "S" : "R";
                 var detallesPedido = registro.LabRegistroDetalle.ToList();
                 var gruposEnPedido = detallesPedido
@@ -92,7 +92,7 @@ namespace LaboratoryService_Api.Utilities
 
                         foreach (var practicaId in practicasDelGrupo)
                         {
-                            string ORC = $"ORC|{controlSolicitud}||{grupoId}|||||||||||||||||||||\x0D";
+                            string ORC = $"ORC|{controlSolicitud}||{codigoBarraPedido}|||||||||||||||||||||\x0D";
                             string OBR = $"OBR|1|||{practicaId}||||||||||{fechaPedido}||{prestadorSolicita}||||||||{laboratorioProcesa}|||^^^20241115120405^^{urgenciaPedido}\r";
                             messageBuilder.Append(ORC).Append(OBR);
                         }
