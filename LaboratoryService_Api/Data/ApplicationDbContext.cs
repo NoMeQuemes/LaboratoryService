@@ -24,12 +24,20 @@ namespace LaboratoryService_Api.Data
         public DbSet<Turnos> Turnos { get; set; }
         public DbSet<Habitaciones_Hospital> Habitaciones_Hospital { get; set; }
         public DbSet<Servicios> Servicios { get; set; }
+        public DbSet<LabRegistroXEstado> LabRegistroXEstados { get; set; }
 
         //Relación sin necesidad de una FK en LaboratorioRegistro. Esto usa el potencial de EF sin usar consultas toscas
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
             modelBuilder.Entity<LaboratorioRegistro>()
                 .HasMany(l => l.LabRegistroDetalle)
+                .WithOne(d => d.LaboratorioRegistro)
+                .HasForeignKey(d => d.LaboratorioRegistroID)
+                .OnDelete(DeleteBehavior.Cascade);
+
+            // Configurar la relación entre LaboratorioRegistro y LabRegistroXEstado 
+            modelBuilder.Entity<LaboratorioRegistro>()
+                .HasMany(l => l.LabRegistroXEstado)
                 .WithOne(d => d.LaboratorioRegistro)
                 .HasForeignKey(d => d.LaboratorioRegistroID)
                 .OnDelete(DeleteBehavior.Cascade);

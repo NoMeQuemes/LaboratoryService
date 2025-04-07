@@ -55,6 +55,7 @@ namespace LaboratoryService_Api.Controllers
                                             .ThenInclude(h => h.Habitaciones_Hospital)
                                         .Include(t => t.Turnos)
                                             .ThenInclude(s => s.Servicios)
+                                        .Include(e => e.LabRegistroXEstado)
                                         .FirstOrDefaultAsync();
 
                 if (registro == null)

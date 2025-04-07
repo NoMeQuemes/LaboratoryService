@@ -15,7 +15,7 @@ namespace LaboratoryService_Api.Utilities
             {
                 // Fecha del mensaje
                 string fechaMensaje = DateTime.Now.ToString("yyyyMMddHHmmss");
-                string idMensaje = registro.LaboratorioRegistroID.ToString();
+                string idMensaje = DateTime.Now.ToString("yyyyMMddHHmmss");
 
                 // Datos del paciente
                 string nombrePaciente = $"{registro.Pacientes.Apellido.Trim()}^{registro.Pacientes.Nombre.Trim()}";
@@ -28,11 +28,18 @@ namespace LaboratoryService_Api.Utilities
 
                 // Datos de la internación
                 string tipoPaciente = registro.InternacionID != null ? "1" : "0";
-                string fechaAdmision = registro.InternacionID != null
-                    ? registro.Internaciones.FechaCrea?.ToString("yyyyMMddHHmmss") ?? ""
-                    : registro.TurnoID != null
-                        ? registro.Turnos.FechaCrea?.ToString("yyyyMMddHHmmss") ?? ""
-                        : "";
+                var ultimoEstado = registro.LabRegistroXEstado
+                                           .OrderByDescending( e => e.FechaHora)
+                                           .FirstOrDefault();
+                string fechaAdmision = null;
+                if ( ultimoEstado != null)
+                {
+                    if( ultimoEstado.PracticasEstadoID == 2 || ultimoEstado.PracticasEstadoID == 3 || ultimoEstado.PracticasEstadoID == 4 || ultimoEstado.PracticasEstadoID == 6)
+                    {
+                        fechaAdmision = ultimoEstado.FechaHora.ToString("yyyyMMddHHmmss");
+                    }
+                    fechaAdmision = "|";
+                }
                 string ubicacionPaciente = "CHIR"; //Esto hay que hacerlo dínamico
                 string institucionPaciente = registro.InternacionID != null ? $"{registro.Internaciones.Habitaciones_Hospital.Nombre.Trim()}^{registro.Instituciones.Nombre.Trim()}" : $"{registro.Turnos.Servicios.Nombre.Trim()}^{registro.Instituciones.Nombre.Trim()}";
                 ;

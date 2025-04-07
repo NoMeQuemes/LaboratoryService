@@ -62,9 +62,9 @@ namespace LaboratoryService_Api.Models
         public bool? Validado { get; set; }
         public string CodigoBarra { get; set; }
 
-
         // Relación con LabRegistroDetalle ya que no hay una FK explícita
         public ICollection<LabRegistroDetalle> LabRegistroDetalle { get; set; }
+        public ICollection<LabRegistroXEstado> LabRegistroXEstado { get; set; }
 
 
     }
