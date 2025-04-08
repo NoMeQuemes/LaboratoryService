@@ -1,0 +1,34 @@
+
+# Carpetas de compilación
+bin/
+obj/
+
+# Configuración de Visual Studio
+.vs/
+*.user
+*.suo
+
+# Archivos de log y temporales
+*.log
+*.tmp
+
+# Archivos de publicación
+*.publishsettings
+
+# Configuraciones específicas de la máquina
+*.dbmdl
+*.vscode/
+*.swp
+
+# appsettings.json
+appsettings.json
+appsettings.Development.json
+appsettings.Production.json
+
+# Archivos de backup o temporales
+*.bak
+*.old
+
+# Archivos ocultos de sistema operativo
+.DS_Store
+Thumbs.db

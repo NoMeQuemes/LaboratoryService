@@ -40,10 +40,17 @@ namespace LaboratoryService_Api.Utilities
                     }
                     fechaAdmision = "|";
                 }
-                string ubicacionPaciente = "CHIR"; //Esto hay que hacerlo dínamico
+                string ubicacionPaciente = "|";
+                if(registro.InternacionID != null)
+                {
+                    ubicacionPaciente = registro.Internaciones.Habitaciones_Hospital.Nombre.Trim();
+                }
+                else if( registro.TurnoID != null )
+                {
+                    ubicacionPaciente = "AMBULATORIO";
+                }
                 string institucionPaciente = registro.InternacionID != null ? $"{registro.Internaciones.Habitaciones_Hospital.Nombre.Trim()}^{registro.Instituciones.Nombre.Trim()}" : $"{registro.Turnos.Servicios.Nombre.Trim()}^{registro.Instituciones.Nombre.Trim()}";
-                ;
-                string nombrePrestador = registro.Prestadores != null ? $"{registro.Prestadores.PrestadorID}^{registro.Prestadores?.Nombre.Trim()}" : "";
+                string nombrePrestador = registro.Prestadores != null ? $"{registro.Prestadores?.Nombre.Trim()}" : "";
                 string prestadorSolicita = registro.Prestadores.Nombre.Trim() ?? "|";
 
                 // Datos del pedido
