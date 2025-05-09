@@ -19,9 +19,9 @@ namespace LaboratoryService_Api.Controllers
         private readonly ApplicationDbContext _context;
         private readonly ApiResponse _response;
         private readonly ConvertHL7 _parsearHL7;
-        private readonly TcpManager _tcpManager;
+        private readonly TcpClient _tcpManager;
 
-        public LaboratorioComunicacionController(ApplicationDbContext context, ConvertHL7 convertHL7, TcpManager tcpManager)
+        public LaboratorioComunicacionController(ApplicationDbContext context, ConvertHL7 convertHL7, TcpClient tcpManager)
         {
             _context = context;
             _response = new ApiResponse();

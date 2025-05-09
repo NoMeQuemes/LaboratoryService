@@ -6,15 +6,15 @@ using System.Threading;
 
 namespace LaboratoryService_Api.Utilities
 {
-    public class TcpManager
+    public class TcpClient
     {
         private readonly string _serverIp;
         private readonly int _serverPort;
-        private TcpClient _client;
+        private System.Net.Sockets.TcpClient _client;
         private NetworkStream _stream;
         private bool _isListening;
 
-        public TcpManager(string serverIp, int serverPort)
+        public TcpClient(string serverIp, int serverPort)
         {
             _serverIp = serverIp;
             _serverPort = serverPort;
@@ -25,7 +25,7 @@ namespace LaboratoryService_Api.Utilities
         {
             try
             {
-                _client = new TcpClient(_serverIp, _serverPort);
+                _client = new System.Net.Sockets.TcpClient(_serverIp, _serverPort);
                 _stream = _client.GetStream();
                 _isListening = true;
                 Thread listenerThread = new Thread(ListenForResponses);

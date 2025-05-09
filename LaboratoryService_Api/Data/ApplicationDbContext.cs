@@ -14,6 +14,7 @@ namespace LaboratoryService_Api.Data
 
         public DbSet<LabRegistroDetalle> LabRegistroDetalles { get; set; }
         public DbSet<LaboratorioPracticas> LaboratorioPracticas { get; set; }
+
         public DbSet<LaboratorioRegistro> LaboratorioRegistro { get; set; }
         public DbSet<LabGrupoPractica> LabGrupoPracticas { get; set; }
         public DbSet<Pacientes> Pacientes { get; set; }
