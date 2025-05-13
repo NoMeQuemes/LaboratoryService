@@ -5,7 +5,11 @@ using NLog;
 using NLog.Web;
 
 // Inicializa NLog y crea logger global
-var logger = NLog.LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
+//var logger = NLog.LogManager.Setup().LoadConfigurationFromAppSettings().GetCurrentClassLogger();
+
+var logger = NLog.LogManager.Setup()
+    .LoadConfigurationFromFile("NLog.config")
+    .GetCurrentClassLogger();
 
 try
 {
@@ -41,13 +45,13 @@ try
     tcpServer.StartListening();
 
     // Configuración del middleware
-    if (app.Environment.IsDevelopment())
-    {
-        app.UseSwagger();
-        app.UseSwaggerUI();
-    }
+    //if (app.Environment.IsDevelopment())
+    //{
+    //}
+    app.UseSwagger();
+    app.UseSwaggerUI();
 
-    app.UseHttpsRedirection();
+    //app.UseHttpsRedirection();
     app.UseAuthorization();
     app.MapControllers();
 
