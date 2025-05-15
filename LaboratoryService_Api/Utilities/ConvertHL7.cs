@@ -123,7 +123,7 @@ namespace LaboratoryService_Api.Utilities
 
                 // Formatear mensaje en protocolo MLLP
                 string hl7Message = messageBuilder.ToString();
-                string mllpMessage = $"\x0B{hl7Message}\x1C\r";
+                string mllpMessage = $"\x0B{hl7Message}\x1C\r"; //\x0D
 
                 Debug.WriteLine($"Mensaje HL7 generado:\n{mllpMessage}");
                 return mllpMessage;

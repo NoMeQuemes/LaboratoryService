@@ -1,4 +1,5 @@
-﻿using System;
+﻿using NLog;
+using System;
 using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
@@ -13,6 +14,7 @@ namespace LaboratoryService_Api.Utilities
         private System.Net.Sockets.TcpClient _client;
         private NetworkStream _stream;
         private bool _isListening;
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
 
         public TcpClient(string serverIp, int serverPort)
         {
@@ -31,10 +33,13 @@ namespace LaboratoryService_Api.Utilities
                 Thread listenerThread = new Thread(ListenForResponses);
                 listenerThread.IsBackground = true;
                 listenerThread.Start();
+                Debug.WriteLine("Conexión con el servidor exitosa");
+                logger.Info("Conexión con el servidor exitosa");
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error connecting to server: {ex.Message}");
+                Debug.WriteLine($"Error al conectar con el servidor: {ex.Message}");
+                logger.Error($"Error al conectar con el servidor: {ex.Message}");
             }
         }
 
@@ -44,7 +49,8 @@ namespace LaboratoryService_Api.Utilities
             {
                 if (_client == null || !_client.Connected)
                 {
-                    Debug.WriteLine("Reconnecting...");
+                    Debug.WriteLine("Reconectando...");
+                    logger.Info("Reconectando...");
                     Connect();
                 }
 
@@ -57,7 +63,8 @@ namespace LaboratoryService_Api.Utilities
             }
             catch (Exception ex)
             {
-                Debug.WriteLine($"Error sending message: {ex.Message}");
+                Debug.WriteLine($"Error al enviar el mensaje: {ex.Message}");
+                logger.Error($"Error al enviar el mensaje: {ex.Message}");
             }
         }
 
@@ -74,8 +81,8 @@ namespace LaboratoryService_Api.Utilities
                         if (bytesRead > 0)
                         {
                             string response = Encoding.ASCII.GetString(buffer, 0, bytesRead);
-                            Console.WriteLine($"Received: {response}");
-                            Debug.WriteLine($"Received: {response}");
+                            Debug.WriteLine($"Respuesta recibida desde el servidor: {response}");
+                            logger.Info($"Respuesta recibida desde el servidor: {response}");
                         }
                     }
                     Thread.Sleep(100); // Pequeño delay para evitar uso excesivo de CPU
@@ -83,8 +90,8 @@ namespace LaboratoryService_Api.Utilities
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error receiving response: {ex.Message}");
-                Debug.WriteLine($"Error receiving response: {ex.Message}");
+                Debug.WriteLine($"Error al recibir la respuesta: {ex.Message}");
+                logger.Error($"Error al recibir la respuesta: {ex.Message}");
             }
         }
 
