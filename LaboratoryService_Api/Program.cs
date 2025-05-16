@@ -24,8 +24,9 @@ try
 
     // Agregar servicios
     builder.Services.AddScoped<ConvertHL7>(); // conversor HL7
-    builder.Services.AddSingleton<TcpClient>(new TcpClient("181.104.119.82", 4000));
-    //builder.Services.AddSingleton<TcpClient>(new TcpClient("127.0.0.1", 5000));
+    //builder.Services.AddSingleton<TcpClient>(new TcpClient("181.104.119.82", 4000));
+    builder.Services.AddSingleton<TcpClient>(new TcpClient("127.0.0.1", 5000));
+    //builder.Services.AddSingleton<TcpClient>(new TcpClient("168.226.219.57", 5000));
     builder.Services.AddSingleton<TcpServer>(new TcpServer(5000));
     // builder.Services.AddSingleton<TcpManager>(new TcpManager("127.0.0.1", 22222));
 

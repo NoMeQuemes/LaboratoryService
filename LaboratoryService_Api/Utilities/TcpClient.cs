@@ -4,6 +4,7 @@ using System.Diagnostics;
 using System.Net.Sockets;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace LaboratoryService_Api.Utilities
 {
@@ -23,23 +24,30 @@ namespace LaboratoryService_Api.Utilities
             Connect();
         }
 
-        private void Connect()
+        private bool Connect()
         {
             try
             {
                 _client = new System.Net.Sockets.TcpClient(_serverIp, _serverPort);
                 _stream = _client.GetStream();
                 _isListening = true;
-                Thread listenerThread = new Thread(ListenForResponses);
-                listenerThread.IsBackground = true;
+
+                Thread listenerThread = new Thread(ListenForResponses)
+                {
+                    IsBackground = true
+                };
                 listenerThread.Start();
+
                 Debug.WriteLine("Conexión con el servidor exitosa");
                 logger.Info("Conexión con el servidor exitosa");
+                return true;
             }
             catch (Exception ex)
             {
                 Debug.WriteLine($"Error al conectar con el servidor: {ex.Message}");
                 logger.Error($"Error al conectar con el servidor: {ex.Message}");
+                _stream = null;
+                return false;
             }
         }
 
@@ -49,17 +57,29 @@ namespace LaboratoryService_Api.Utilities
             {
                 if (_client == null || !_client.Connected)
                 {
-                    Debug.WriteLine("Reconectando...");
-                    logger.Info("Reconectando...");
-                    Connect();
+                    Debug.WriteLine("Cliente desconectado. Intentando reconectar...");
+                    logger.Info("Cliente desconectado. Intentando reconectar...");
+
+                    if (!Connect())
+                    {
+                        Debug.WriteLine("No se pudo reconectar al servidor.");
+                        logger.Error("No se pudo reconectar al servidor.");
+                        return;
+                    }
+                }
+
+                if (_stream == null)
+                {
+                    Debug.WriteLine("Stream no disponible. No se puede enviar el mensaje.");
+                    logger.Error("Stream no disponible. No se puede enviar el mensaje.");
+                    return;
                 }
 
                 byte[] data = Encoding.ASCII.GetBytes(message);
                 _stream.Write(data, 0, data.Length);
 
-                // Iniciar la escucha después de enviar un mensaje
+                // Iniciar escucha en segundo plano (opcional, ya está en Connect)
                 Task.Run(() => ListenForResponses());
-
             }
             catch (Exception ex)
             {
@@ -73,9 +93,9 @@ namespace LaboratoryService_Api.Utilities
             try
             {
                 byte[] buffer = new byte[1024];
-                while (_isListening && _client.Connected)
+                while (_isListening && _client != null && _client.Connected)
                 {
-                    if (_stream.DataAvailable) // Verificar si hay datos antes de leer
+                    if (_stream != null && _stream.DataAvailable)
                     {
                         int bytesRead = _stream.Read(buffer, 0, buffer.Length);
                         if (bytesRead > 0)
@@ -85,7 +105,7 @@ namespace LaboratoryService_Api.Utilities
                             logger.Info($"Respuesta recibida desde el servidor: {response}");
                         }
                     }
-                    Thread.Sleep(100); // Pequeño delay para evitar uso excesivo de CPU
+                    Thread.Sleep(100); // Evitar uso excesivo de CPU
                 }
             }
             catch (Exception ex)
@@ -98,8 +118,18 @@ namespace LaboratoryService_Api.Utilities
         public void Disconnect()
         {
             _isListening = false;
-            _stream?.Close();
-            _client?.Close();
+            try
+            {
+                _stream?.Close();
+                _client?.Close();
+                Debug.WriteLine("Desconectado del servidor.");
+                logger.Info("Desconectado del servidor.");
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Error al cerrar la conexión: {ex.Message}");
+                logger.Error($"Error al cerrar la conexión: {ex.Message}");
+            }
         }
     }
 }

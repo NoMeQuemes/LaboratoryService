@@ -123,7 +123,7 @@ namespace LaboratoryService_Api.Utilities
 
                 // Formatear mensaje en protocolo MLLP
                 string hl7Message = messageBuilder.ToString();
-                string mllpMessage = $"\x0B{hl7Message}\x1C\r"; //\x0D
+                string mllpMessage = $"\x0B{hl7Message}\x1C\r";
 
                 Debug.WriteLine($"Mensaje HL7 generado:\n{mllpMessage}");
                 return mllpMessage;
@@ -134,5 +134,32 @@ namespace LaboratoryService_Api.Utilities
                 throw new Exception("Error al convertir a HL7: " + ex.Message);
             }
         }
+
+        public static string ObtenerMessageControlId(string mensajeHL7)
+        {
+            // Dividir en segmentos por salto de línea o <CR>
+            var segmentos = mensajeHL7.Split('\r');
+
+            // Buscar el segmento MSH
+            var segmentoMSH = segmentos.FirstOrDefault(s => s.StartsWith("MSH"));
+            if (segmentoMSH == null)
+                throw new Exception("Mensaje HL7 inválido: no contiene segmento MSH.");
+
+            // Determinar el separador de campos (el primer carácter después de "MSH|")
+            char separador = segmentoMSH[3];  // Generalmente '|'
+
+            // Dividir los campos del MSH
+            var campos = segmentoMSH.Split(separador);
+
+            if (campos.Length < 10)
+                throw new Exception("Mensaje MSH incompleto: faltan campos.");
+
+            // MSH-10 es el campo 10 (índice 9 porque es base cero)
+            return campos[9];
+        }
+
+
+
+
     }
 }

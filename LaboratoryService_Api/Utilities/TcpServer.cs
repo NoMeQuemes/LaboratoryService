@@ -79,13 +79,22 @@ namespace LaboratoryService_Api.Utilities
                                     if (i + 1 < bytesRead && buffer[i + 1] == 0x0D)
                                     {
                                         string hl7Message = messageBuilder.ToString();
-                                        Debug.WriteLine($"[MLLP] Mensaje HL7 recibido:\n{hl7Message}");
-                                        logger.Info($"Mensaje HL7 recibido: {hl7Message}");
+                                        Debug.WriteLine($"Servidor: mensaje HL7 recibido:\n{hl7Message}");
+                                        logger.Info($"Servidor: mensaje HL7 recibido: {hl7Message}");
 
-                                        // Procesar HL7 aquí...
+                                        string idHl7Message = ConvertHL7.ObtenerMessageControlId(hl7Message);
 
-                                        // Enviar ACK HL7
-                                        string ackMessage = "MSH|^~\\&|ACK message\r"; // Simulado
+                                        //  Construcción del mensaje ACK
+                                        string fechaActual = DateTime.Now.ToString("yyyyMMddHHmmss");
+                                        string MSH = $"MSH|^~\\&|HOSTStandardHL7^5.2.0||LIS||{fechaActual}||ACK|MSG00001|P|2.5\x0D";
+                                        string MSA = $"MSA|CA|{idHl7Message}\x0D";
+
+                                        var ackBuilder = new StringBuilder();
+                                        ackBuilder.Append(MSH)
+                                                  .Append(MSA);
+
+                                        string ackMessage = ackBuilder.ToString();
+
                                         string mllpAck = $"{(char)0x0B}{ackMessage}{(char)0x1C}{(char)0x0D}";
                                         byte[] ackBytes = Encoding.ASCII.GetBytes(mllpAck);
                                         stream.Write(ackBytes, 0, ackBytes.Length);
