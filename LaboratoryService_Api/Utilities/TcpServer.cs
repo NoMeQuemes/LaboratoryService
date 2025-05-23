@@ -5,6 +5,11 @@ using System.Net.Sockets;
 using System.Text;
 using System.Threading;
 using NLog;
+using NHapi.Base.Parser;
+using NHapi.Model.V25.Message;
+using NHapi.Model.V25.Segment;
+using NHapi.Base.Model;
+
 
 namespace LaboratoryService_Api.Utilities
 {
@@ -82,9 +87,13 @@ namespace LaboratoryService_Api.Utilities
                                         Debug.WriteLine($"Servidor: mensaje HL7 recibido:\n{hl7Message}");
                                         logger.Info($"Servidor: mensaje HL7 recibido: {hl7Message}");
 
-                                        string idHl7Message = ConvertHL7.ObtenerMessageControlId(hl7Message);
+                                        string typeMessage = ParserHL7.ObtenerTipoMensaje( hl7Message );
+
+                                        string paciente = ParserHL7.DecodificarOULR22(hl7Message);
+                                        Debug.WriteLine($"Datos de el paciente: {paciente}");
 
                                         //  Construcción del mensaje ACK
+                                        string idHl7Message = ConvertHL7.ObtenerMessageControlId(hl7Message);
                                         string fechaActual = DateTime.Now.ToString("yyyyMMddHHmmss");
                                         string MSH = $"MSH|^~\\&|HOSTStandardHL7^5.2.0||LIS||{fechaActual}||ACK|MSG00001|P|2.5\x0D";
                                         string MSA = $"MSA|CA|{idHl7Message}\x0D";

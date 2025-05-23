@@ -69,7 +69,7 @@ namespace LaboratoryService_Api.Utilities
                     .ToList();
 
                 // Construcción de los segmentos
-                string MSH = $"MSH|^~\\&|LIS||Abbott||{fechaMensaje}||OML^O33|{idMensaje}|P|2.5|||AL|NE\x0D";
+                string MSH = $"MSH|^~\\&|LIS||Abbott||{fechaMensaje}||OUL^R22|{idMensaje}|P|2.5|||AL|NE\x0D";
                 string PID = $"PID|1||{documentoPaciente}||{nombrePaciente}||{fechaNacimiento}|{sexoPaciente}|||{direccionPaciente}||||||\x0D";
                 string NTEPID = $"NTE|1|L|{notasPaciente}\x0D";
                 string PV1 = $"PV1|1||{ubicacionPaciente}|{fechaAdmision}|{nombrePrestador}|||||{institucionPaciente}||||||||{tipoPaciente}\x0D";

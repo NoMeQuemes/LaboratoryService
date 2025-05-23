@@ -15,8 +15,9 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
-    <PackageReference Include="nhapi" Version="3.2.2" />
-    <PackageReference Include="nhapi.model.v251" Version="3.2.0" />
+    <PackageReference Include="nhapi" Version="3.2.4" />
+    <PackageReference Include="nhapi.model.v25" Version="3.2.4" />
+    <PackageReference Include="nhapi.model.v251" Version="3.2.4" />
     <PackageReference Include="NLog" Version="5.4.0" />
     <PackageReference Include="NLog.Config" Version="4.7.15" />
     <PackageReference Include="NLog.Schema" Version="5.4.0" />
