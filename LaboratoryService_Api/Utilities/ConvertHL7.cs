@@ -29,23 +29,23 @@ namespace LaboratoryService_Api.Utilities
                 // Datos de la internación
                 string tipoPaciente = registro.InternacionID != null ? "1" : "0";
                 var ultimoEstado = registro.LabRegistroXEstado
-                                           .OrderByDescending( e => e.FechaHora)
+                                           .OrderByDescending(e => e.FechaHora)
                                            .FirstOrDefault();
                 string fechaAdmision = null;
-                if ( ultimoEstado != null)
+                if (ultimoEstado != null)
                 {
-                    if( ultimoEstado.PracticasEstadoID == 2 || ultimoEstado.PracticasEstadoID == 3 || ultimoEstado.PracticasEstadoID == 4 || ultimoEstado.PracticasEstadoID == 6)
+                    if (ultimoEstado.PracticasEstadoID == 2 || ultimoEstado.PracticasEstadoID == 3 || ultimoEstado.PracticasEstadoID == 4 || ultimoEstado.PracticasEstadoID == 6)
                     {
                         fechaAdmision = ultimoEstado.FechaHora.ToString("yyyyMMddHHmmss");
                     }
                     fechaAdmision = "|";
                 }
                 string ubicacionPaciente = "|";
-                if(registro.InternacionID != null)
+                if (registro.InternacionID != null)
                 {
                     ubicacionPaciente = registro.Internaciones.Habitaciones_Hospital.Nombre.Trim();
                 }
-                else if( registro.TurnoID != null )
+                else if (registro.TurnoID != null)
                 {
                     ubicacionPaciente = "AMBULATORIO";
                 }

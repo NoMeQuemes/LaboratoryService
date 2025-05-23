@@ -18,7 +18,7 @@ namespace LaboratoryService_Api.Utilities
         private readonly int _listeningPort;
         private TcpListener _listener;
         private bool _isRunning;
-        private static  readonly Logger logger = LogManager.GetCurrentClassLogger();
+        private static readonly Logger logger = LogManager.GetCurrentClassLogger();
 
         public TcpServer(int port)
         {
