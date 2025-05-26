@@ -7,6 +7,8 @@ using System;
 using System.Text.Json;
 using NLog;
 using System.ComponentModel;
+using LaboratoryService_Api.Models;
+using System.Diagnostics;
 
 namespace LaboratoryService_Api.Utilities
 {
@@ -169,8 +171,17 @@ namespace LaboratoryService_Api.Utilities
                     DateTime fechaExtraccion;
                     try
                     {
-                        string fechaExtraccionRaw = obr.ObservationDateTime.Time.Value;
-                        fechaExtraccion = DateTime.ParseExact(fechaExtraccionRaw, "yyyyMMddHHmmss", null);
+                        string fechaExtraccionRaw = obr.ObservationDateTime?.Time?.Value;
+
+                        if (!string.IsNullOrEmpty(fechaExtraccionRaw))
+                        {
+                            fechaExtraccion = DateTime.ParseExact(fechaExtraccionRaw, "yyyyMMddHHmmss", null);
+                        }
+                        else
+                        {
+                            logger.Warn("OBR Observation Date is null or empty, using default date.");
+                            fechaExtraccion = DateTime.MinValue;
+                        }
                     }
                     catch (FormatException)
                     {
@@ -395,8 +406,113 @@ namespace LaboratoryService_Api.Utilities
             return JsonSerializer.Serialize(OulR22Parseado, Json);
         }
 
+        public static string DecodificarSSUUO3(string hl7)
+        {
+            PipeParser parser = new PipeParser();
+            SSU_U03 mensaje = parser.Parse(hl7) as SSU_U03;
+
+            //Segmento MSH
+            MSH msh = mensaje.MSH;
+
+            string nombreRemitente = msh.SendingApplication.NamespaceID.Value;
+            string versionRemitente = msh.VersionID.VersionID.Value;
+
+            string fechaRaw = msh.DateTimeOfMessage.Time.Value;
+            DateTime fechaMensaje = DateTime.ParseExact(fechaRaw, "yyyyMMddHHmmss", null);
+
+            string tipoMensaje = $"{msh.MessageType.MessageCode.Value}^{msh.MessageType.TriggerEvent.Value}";
+            string mensajeID = msh.MessageControlID.Value;
+
+            _MSH infoMSH = new _MSH
+            {
+                NombreRemitente = nombreRemitente,
+                VersionRemitente = versionRemitente,
+                FechaMensaje = fechaMensaje,
+                TipoMensaje = tipoMensaje,
+                MensajeID = mensajeID
+            };
 
 
+            // Segmento EQU
+            var equ = mensaje.EQU;
+
+            _EQU equipo = new _EQU
+            {
+                EquipmentInstanceIdentifier = equ.EquipmentInstanceIdentifier?.EntityIdentifier?.Value,
+                EventDate = equ.EventDateTime?.Time?.Value
+            };
+
+            //Segmento SAC
+            var sacList = new List<_SAC>();
+            for (int i = 0; i < mensaje.SPECIMEN_CONTAINERRepetitionsUsed; i++)
+            {
+                var containerGroup = mensaje.GetSPECIMEN_CONTAINER(i);
+                var sac = containerGroup.SAC;
+
+                // Código de evento (CK, SE, SS, AL, PT, SU, TU, SM, SD…)
+                string eventCode = sac.EquipmentContainerIdentifier?.EntityIdentifier?.Value;
+
+                // Campos base comunes a todos los tipos
+                var sacObj = new _SAC
+                {
+                    AccessionIdentifier = sac.AccessionIdentifier?.EntityIdentifier?.Value,
+                    ContainerIdentifier = sac.ContainerIdentifier?.EntityIdentifier?.Value,
+                    EquipmentContainerIdentifier = eventCode,
+                    // dejamos nulos los opcionales y los llenamos en el switch
+                };
+
+                switch (eventCode)
+                {
+                    case "CK":  // Sample Check-In
+                    case "SE":  // Sample Seen
+                        sacObj.RegistrationDate = sac.RegistrationDateTime?.Time?.Value;
+                        break;
+
+                    case "SS":  // Sample Storage
+                        sacObj.RegistrationDate = sac.RegistrationDateTime?.Time?.Value;
+                        sacObj.CarrierIdentifier = sac.CarrierIdentifier?.EntityIdentifier?.Value;
+                        sacObj.PositionInCarrier = (sac.GetField(11, 0) as NHapi.Base.Model.IPrimitive)?.Value;
+                        sacObj.Location = sac.LocationRepetitionsUsed > 0
+                                                      ? sac.GetLocation(0).Identifier.Value
+                                                      : null;
+                        break;
+
+                    case "AL":  // Aliquot Notification
+                        sacObj.RegistrationDate = sac.RegistrationDateTime?.Time?.Value;
+                        sacObj.SpecimenSource = sac.SpecimenSource?.ToString();
+                        sacObj.CarrierIdentifier = sac.CarrierIdentifier?.EntityIdentifier?.Value;
+                        sacObj.AvailableSpecimenVolume = sac.AvailableSpecimenVolume?.Value;
+                        break;
+
+                    // …otros casos: PT, SU, TU, SM, SD…
+                    default:
+                        // si viene un tipo no contemplado, al menos guardamos fecha y estado
+                        sacObj.RegistrationDate = sac.RegistrationDateTime?.Time?.Value;
+                        sacObj.ContainerStatus = sac.ContainerStatus?.Identifier?.Value;
+                        break;
+                }
+
+                sacList.Add(sacObj);
+            }
+
+
+
+
+
+            //Se convierte todos los segmentos en un JSON
+            SSUUO3 SsuUo3Parseado = new SSUUO3
+            {
+                MSH = infoMSH
+            };
+
+            var Json = new JsonSerializerOptions
+            {
+                WriteIndented = true, //Para formato bonito
+            };
+
+            logger.Info($"Json del mensaje recibido: {JsonSerializer.Serialize(SsuUo3Parseado, Json)}");
+            return JsonSerializer.Serialize(SsuUo3Parseado, Json);
+        }
         //Objetos
         public class OULR22
         {
@@ -408,6 +524,11 @@ namespace LaboratoryService_Api.Utilities
             public List<_TCD> TCD { get; set; }
             public List<_INV> INV { get; set; }
 
+        }
+        public class SSUUO3
+        {
+            public _MSH MSH { get; set; }
+            public List<_SAC> SAC { get; set; }
         }
         public class _MSH
         {
@@ -434,12 +555,18 @@ namespace LaboratoryService_Api.Utilities
         }
         public class _SAC
         {
-            public string AccessionIdentifier { get; set; }
-            public string ContainerIdentifier { get; set; }
-            public string CarrierIdentifier { get; set; }
-            public string PositionInCarrier { get; set; }
-            public string RackLocation { get; set; }
-            public string BayNumber { get; set; }
+            public string AccessionIdentifier { get; set; } //2
+            public string ContainerIdentifier { get; set; } //3
+            public string EquipmentContainerIdentifier { get; set; } //5
+            public string SpecimenSource {  get; set; } //6
+            public string RegistrationDate { get; set; } //7
+            public string ContainerStatus { get; set; } //8
+            public string CarrierIdentifier { get; set; } //10
+            public string PositionInCarrier { get; set; } //11
+            public string Location { get; set; } //15
+            public string RackLocation { get; set; } //15.1
+            public string BayNumber { get; set; } //15.2
+            public string AvailableSpecimenVolume { get; set; } //22
         }
         public class _OBR
         {
@@ -509,6 +636,11 @@ namespace LaboratoryService_Api.Utilities
             public string SetId { get; set; }
             public string SourceOfComment { get; set; }
             public string CommentText { get; set; }
+        }
+        public class _EQU
+        {
+            public string EquipmentInstanceIdentifier { get; set; }
+            public string EventDate { get; set; }
         }
 
     }
