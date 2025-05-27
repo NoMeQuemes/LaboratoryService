@@ -18,6 +18,7 @@ namespace LaboratoryService_Api.Utilities
 
         public static string ObtenerTipoMensaje(string hl7)
         {
+            hl7 = hl7.Trim((char)0x0B, (char)0x1C, (char)0x0D);
             PipeParser parser = new PipeParser();
             var genericMessage = parser.Parse(hl7);
             var mshSegment = genericMessage.GetStructure("MSH") as NHapi.Model.V25.Segment.MSH;
@@ -29,15 +30,19 @@ namespace LaboratoryService_Api.Utilities
             PipeParser parser = new PipeParser();
             OUL_R22 mensaje = parser.Parse(hl7) as OUL_R22;
 
+            // Helper para fechas HL7
+            static DateTime ParseHl7Date(string value, string format = "yyyyMMddHHmmss")
+            {
+                return DateTime.TryParseExact(value?.Trim(), format, null, System.Globalization.DateTimeStyles.None, out DateTime result)
+                    ? result
+                    : DateTime.MinValue;
+            }
+
             //Segmento MSH
             MSH msh = mensaje.MSH;
-
             string nombreRemitente = msh.SendingApplication.NamespaceID.Value;
             string versionRemitente = msh.VersionID.VersionID.Value;
-
-            string fechaRaw = msh.DateTimeOfMessage.Time.Value;
-            DateTime fechaMensaje = DateTime.ParseExact(fechaRaw, "yyyyMMddHHmmss", null);
-
+            DateTime fechaMensaje = ParseHl7Date(msh.DateTimeOfMessage?.Time?.Value);
             string tipoMensaje = $"{msh.MessageType.MessageCode.Value}^{msh.MessageType.TriggerEvent.Value}";
             string mensajeID = msh.MessageControlID.Value;
 
@@ -52,16 +57,11 @@ namespace LaboratoryService_Api.Utilities
 
             //Segmento PID
             PID pid = mensaje.PATIENT.PID;
-
             string patientID = pid.GetPatientIdentifierList(0).IDNumber.Value;
-
             string apellido = pid.GetPatientName(0).FamilyName.Surname.Value;
             string nombre = pid.GetPatientName(0).GivenName.Value;
             string patientName = $"{nombre} {apellido}";
-
-            string birthdateRaw = pid.DateTimeOfBirth.Time.Value;
-            DateTime birthdate = DateTime.ParseExact(birthdateRaw, "yyyyMMdd", null);
-
+            DateTime birthdate = ParseHl7Date(pid.DateTimeOfBirth?.Time?.Value, "yyyyMMdd");
             string sex = pid.AdministrativeSex.Value;
 
             _PID paciente = new _PID
@@ -70,11 +70,14 @@ namespace LaboratoryService_Api.Utilities
                 NombreCompleto = patientName,
                 FechaNacimiento = birthdate,
                 Sexo = sex
-            }; ;
+            };
 
-            //Segmento SPM
-            List<_SPM> muestras = new List<_SPM>();
-            List<_SAC> contenedores = new List<_SAC>();
+            List<_SPM> muestras = new();
+            List<_SAC> contenedores = new();
+            List<_OBR> obrList = new();
+            List<_OBX> obxList = new();
+            List<_TCD> tcdList = new();
+            List<_INV> invList = new();
 
             int totalSpecimens = mensaje.SPECIMENRepetitionsUsed;
             for (int i = 0; i < totalSpecimens; i++)
@@ -82,326 +85,145 @@ namespace LaboratoryService_Api.Utilities
                 var specimenGroup = mensaje.GetSPECIMEN(i);
                 var spm = specimenGroup.SPM;
 
-                string setId = spm.SetIDSPM.Value;
-
-                string specimenID = spm.SpecimenID?.PlacerAssignedIdentifier?.EntityIdentifier?.Value;
-                string specimenParentID = spm.GetSpecimenParentIDs().Length > 0
-                    ? spm.GetSpecimenParentIDs()[0].PlacerAssignedIdentifier?.EntityIdentifier?.Value
-                    : null;
-                string specimenType = spm.SpecimenType?.Identifier?.Value;
-
-                _SPM muestra = new _SPM
+                _SPM muestra = new()
                 {
-                    SetId = setId,
-                    SpecimenID = specimenID,
-                    SpecimenParentID = specimenParentID,
-                    SpecimenType = specimenType
+                    SetId = spm.SetIDSPM.Value,
+                    SpecimenID = spm.SpecimenID?.PlacerAssignedIdentifier?.EntityIdentifier?.Value,
+                    SpecimenParentID = spm.GetSpecimenParentIDs().Length > 0
+                        ? spm.GetSpecimenParentIDs()[0].PlacerAssignedIdentifier?.EntityIdentifier?.Value
+                        : null,
+                    SpecimenType = spm.SpecimenType?.Identifier?.Value
                 };
-
                 muestras.Add(muestra);
 
                 // Segmento SAC
-                int containerCount = specimenGroup.CONTAINERRepetitionsUsed;
-                for (int j = 0; j < containerCount; j++)
+                for (int j = 0; j < specimenGroup.CONTAINERRepetitionsUsed; j++)
                 {
-                    var containerGroup = specimenGroup.GetCONTAINER(j);
-                    var sac = containerGroup.SAC;
+                    var sac = specimenGroup.GetCONTAINER(j).SAC;
 
-                    string accessionId = sac.AccessionIdentifier?.EntityIdentifier?.Value;
-                    string containerId = sac.ContainerIdentifier?.EntityIdentifier?.Value;
-                    string carrierId = sac.CarrierIdentifier?.EntityIdentifier?.Value;
-                    string positionInCarrier = $"{sac.PositionInCarrier?.Value1}.{sac.PositionInCarrier?.Value2}";
-                    string rackLocation = sac.LocationRepetitionsUsed > 0
-                                            ? sac.GetLocation(0).Identifier.Value
-                                            : null;
-                    string bayNumber = ((NM)sac.GetField(17, 0))?.Value;
-
-                    _SAC containerInfo = new _SAC
+                    _SAC contenedor = new()
                     {
-                        AccessionIdentifier = accessionId,
-                        ContainerIdentifier = containerId,
-                        CarrierIdentifier = carrierId,
-                        PositionInCarrier = positionInCarrier,
-                        RackLocation = rackLocation,
-                        BayNumber = bayNumber
+                        AccessionIdentifier = sac.AccessionIdentifier?.EntityIdentifier?.Value,
+                        ContainerIdentifier = sac.ContainerIdentifier?.EntityIdentifier?.Value,
+                        CarrierIdentifier = sac.CarrierIdentifier?.EntityIdentifier?.Value,
+                        PositionInCarrier = $"{sac.PositionInCarrier?.Value1}.{sac.PositionInCarrier?.Value2}",
+                        RackLocation = sac.LocationRepetitionsUsed > 0 ? sac.GetLocation(0).Identifier.Value : null,
+                        BayNumber = ((NM)sac.GetField(17, 0))?.Value
                     };
-
-                    contenedores.Add(containerInfo);
+                    contenedores.Add(contenedor);
                 }
-            }
 
-            // Segmento OBR
-            List<_OBR> obrList = new List<_OBR>();
-
-            // Iterar sobre los grupos SPECIMEN
-            int totalSpecimenss = mensaje.SPECIMENRepetitionsUsed;
-            for (int i = 0; i < totalSpecimens; i++)
-            {
-                var specimenGroup = mensaje.GetSPECIMEN(i);
-
-                // Iterar sobre los grupos ORDER dentro de cada SPECIMEN
-                int totalOrders = specimenGroup.ORDERRepetitionsUsed; // Aquí usamos ORDERRepetitionsUsed dentro de SPECIMEN
-                for (int j = 0; j < totalOrders; j++)
+                // Segmento OBR, TCD, INV y OBX dentro del grupo ORDER
+                for (int j = 0; j < specimenGroup.ORDERRepetitionsUsed; j++)
                 {
                     var orderGroup = specimenGroup.GetORDER(j);
                     var obr = orderGroup.OBR;
 
-                    string setId = obr.SetIDOBR.Value ?? "";
-                    string placerOrderNumber = obr.PlacerOrderNumber.EntityIdentifier.Value ?? "";
-                    string fillerOrderNumber = obr.FillerOrderNumber.EntityIdentifier.Value ?? "";
-                    string universalTestId = obr.UniversalServiceIdentifier.Identifier.Value ?? "";
-
-                    DateTime fechaMuestraRecibida;
-                    try
+                    _OBR obrInfo = new()
                     {
-                        string fechaMuestraRaw = obr.SpecimenReceivedDateTime.Time.Value;
-                        fechaMuestraRecibida = DateTime.ParseExact(fechaMuestraRaw, "yyyyMMddHHmmss", null);
-                    }
-                    catch (FormatException)
-                    {
-                        logger.Warn("Invalid OBR Specimen Received Date format, using default date.");
-                        fechaMuestraRecibida = DateTime.MinValue;
-                    }
-
-                    string requestingProvider = obr.GetOrderingProvider().Length > 0
-                        ? $"{obr.GetOrderingProvider(0).GivenName.Value} {obr.GetOrderingProvider(0).FamilyName.Surname.Value}".Trim()
-                        : "";
-                    string diagnosticService = obr.DiagnosticServSectID.Value ?? "";
-
-                    DateTime fechaExtraccion;
-                    try
-                    {
-                        string fechaExtraccionRaw = obr.ObservationDateTime?.Time?.Value;
-
-                        if (!string.IsNullOrEmpty(fechaExtraccionRaw))
-                        {
-                            fechaExtraccion = DateTime.ParseExact(fechaExtraccionRaw, "yyyyMMddHHmmss", null);
-                        }
-                        else
-                        {
-                            logger.Warn("OBR Observation Date is null or empty, using default date.");
-                            fechaExtraccion = DateTime.MinValue;
-                        }
-                    }
-                    catch (FormatException)
-                    {
-                        logger.Warn("Invalid OBR Observation Date format, using default date.");
-                        fechaExtraccion = DateTime.MinValue;
-                    }
-
-                    string prioridad = obr.PriorityOBR.Value ?? "";
-
-                    _OBR obrInfo = new _OBR
-                    {
-                        SetId = setId,
-                        PlacerOrderNumber = placerOrderNumber,
-                        FillerOrderNumber = fillerOrderNumber,
-                        UniversalTestId = universalTestId,
-                        FechaMuestraRecibida = fechaMuestraRecibida,
-                        RequestingProvider = requestingProvider,
-                        DiagnosticService = diagnosticService,
-                        FechaExtraccion = fechaExtraccion,
-                        Prioridad = prioridad
+                        SetId = obr.SetIDOBR.Value,
+                        PlacerOrderNumber = obr.PlacerOrderNumber?.EntityIdentifier?.Value,
+                        FillerOrderNumber = obr.FillerOrderNumber?.EntityIdentifier?.Value,
+                        UniversalTestId = obr.UniversalServiceIdentifier?.Identifier?.Value,
+                        FechaMuestraRecibida = ParseHl7Date(obr.SpecimenReceivedDateTime?.Time?.Value),
+                        FechaExtraccion = ParseHl7Date(obr.ObservationDateTime?.Time?.Value),
+                        RequestingProvider = obr.GetOrderingProvider().Length > 0
+                            ? $"{obr.GetOrderingProvider(0).GivenName.Value} {obr.GetOrderingProvider(0).FamilyName.Surname.Value}".Trim()
+                            : "",
+                        DiagnosticService = obr.DiagnosticServSectID?.Value,
+                        Prioridad = obr.PriorityOBR?.Value
                     };
-
                     obrList.Add(obrInfo);
-                }
-            }
-            //Segmento OBX
-            List<_OBX> obxList = new List<_OBX>();
 
-            for (int i = 0; i < mensaje.SPECIMENRepetitionsUsed; i++)
-            {
-                var specimenGroup = mensaje.GetSPECIMEN(i);
-
-                for (int j = 0; j < specimenGroup.OBXRepetitionsUsed; j++)
-                {
-                    var obx = specimenGroup.GetOBX(j);
-
-                    var obxInfo = new _OBX
-                    {
-                        SetId = obx.SetIDOBX?.Value,
-                        ValueType = obx.ValueType?.Value,
-                        ObserationIdentifier = obx.ObservationIdentifier?.Identifier?.Value,
-                        ObservationSubId = obx.ObservationSubID?.Value,
-                        ObservationValue = obx.ObservationValueRepetitionsUsed > 0
-                            ? obx.GetObservationValue(0).Data.ToString()
-                            : null,
-                        Unit = obx.Units?.Identifier?.Value,
-                        ReferenceRanges = obx.ReferencesRange?.Value,
-                        AbnormalFlags = obx.AbnormalFlagsRepetitionsUsed > 0
-                            ? obx.GetAbnormalFlags(0).Value
-                            : null,
-                        NatureOfAbnormalTest = obx.NatureOfAbnormalTestRepetitionsUsed > 0
-                            ? obx.GetNatureOfAbnormalTest(0).Value
-                            : null,
-                        ObservationResultStatus = obx.ObservationResultStatus?.Value,
-                        ValidationUserInAms = obx.ResponsibleObserverRepetitionsUsed > 0
-                            ? obx.GetResponsibleObserver(0).IDNumber.Value
-                            : null,
-                        ValidationUserOnTheInstrument = obx.ResponsibleObserverRepetitionsUsed > 1
-                            ? obx.GetResponsibleObserver(1).IDNumber.Value
-                            : null,
-                        OperatorLogged = obx.ProducerSID?.Identifier?.Value,
-                        SecondValidationUserInAms = obx.ResponsibleObserverRepetitionsUsed > 2
-                            ? obx.GetResponsibleObserver(2).IDNumber.Value
-                            : null,
-
-                        // Parte 18: EquipmentInstanceIdentifier
-                        EditingField = obx.EquipmentInstanceIdentifierRepetitionsUsed > 0
-                            ? obx.GetEquipmentInstanceIdentifier(0).EntityIdentifier.Value
-                            : null,
-                        EditOrQplOrAchitect = obx.EquipmentInstanceIdentifierRepetitionsUsed > 1
-                            ? obx.GetEquipmentInstanceIdentifier(1).EntityIdentifier.Value
-                            : null,
-                        EmptyOrArchitect = obx.EquipmentInstanceIdentifierRepetitionsUsed > 2
-                            ? obx.GetEquipmentInstanceIdentifier(2).EntityIdentifier.Value
-                            : null,
-                        InstrumentSerialNro = obx.EquipmentInstanceIdentifierRepetitionsUsed > 3
-                            ? obx.GetEquipmentInstanceIdentifier(3).EntityIdentifier.Value
-                            : null,
-                        ProcessPathId = obx.EquipmentInstanceIdentifierRepetitionsUsed > 4
-                            ? obx.GetEquipmentInstanceIdentifier(4).EntityIdentifier.Value
-                            : null,
-                        ProcessLaneId = obx.EquipmentInstanceIdentifierRepetitionsUsed > 5
-                            ? obx.GetEquipmentInstanceIdentifier(5).EntityIdentifier.Value
-                            : null,
-
-                        // Parte 19: Fechas
-                        ResultValidationDate = DateTime.TryParseExact(
-                            obx.DateTimeOfTheAnalysis?.Time?.Value,
-                            "yyyyMMddHHmmss",
-                            null,
-                            System.Globalization.DateTimeStyles.None,
-                            out DateTime resultValidationDate) ? resultValidationDate : DateTime.MinValue,
-
-                        InstrumentResultDate = DateTime.TryParseExact(
-                            obx.DateTimeOfTheObservation?.Time?.Value,
-                            "yyyyMMddHHmmss",
-                            null,
-                            System.Globalization.DateTimeStyles.None,
-                            out DateTime instrumentResultDate) ? instrumentResultDate : DateTime.MinValue,
-
-                        SecondResultValidationDate = DateTime.TryParseExact(
-                            obx.EffectiveDateOfReferenceRange?.Time?.Value,
-                            "yyyyMMddHHmmss",
-                            null,
-                            System.Globalization.DateTimeStyles.None,
-                            out DateTime secondValidationDate) ? secondValidationDate : DateTime.MinValue,
-                    };
-
-                    obxList.Add(obxInfo);
-                }
-            }
-
-            //Segmento TCD
-            List<_TCD> tcdList = new List<_TCD>();
-
-            for (int i = 0; i < mensaje.SPECIMENRepetitionsUsed; i++)
-            {
-                var specimenGroup = mensaje.GetSPECIMEN(i);
-
-                for (int j = 0; j < specimenGroup.ORDERRepetitionsUsed; j++)
-                {
-                    var orderGroup = specimenGroup.GetORDER(j);
-
-                    int resultCount = orderGroup.RESULTRepetitionsUsed;
-                    for (int k = 0; k < resultCount; k++)
+                    for (int k = 0; k < orderGroup.RESULTRepetitionsUsed; k++)
                     {
                         var resultGroup = orderGroup.GetRESULT(k);
-                        var tcd = resultGroup.TCD;
 
+                        // OBX
+                        try
+                        {
+                            var obx = resultGroup.OBX;
+
+                            _OBX obxInfo = new()
+                            {
+                                SetId = obx.SetIDOBX?.Value,
+                                ValueType = obx.ValueType?.Value,
+                                ObserationIdentifier = obx.ObservationIdentifier?.Identifier?.Value,
+                                ObservationSubId = obx.ObservationSubID?.Value,
+                                ObservationValue = obx.ObservationValueRepetitionsUsed > 0 ? obx.GetObservationValue(0).Data.ToString() : null,
+                                Unit = obx.Units?.Identifier?.Value,
+                                ReferenceRanges = obx.ReferencesRange?.Value,
+                                AbnormalFlags = obx.AbnormalFlagsRepetitionsUsed > 0 ? obx.GetAbnormalFlags(0).Value : null,
+                                NatureOfAbnormalTest = obx.NatureOfAbnormalTestRepetitionsUsed > 0 ? obx.GetNatureOfAbnormalTest(0).Value : null,
+                                ObservationResultStatus = obx.ObservationResultStatus?.Value,
+                                ValidationUserInAms = obx.ResponsibleObserverRepetitionsUsed > 0 ? obx.GetResponsibleObserver(0).IDNumber.Value : null,
+                                ValidationUserOnTheInstrument = obx.ResponsibleObserverRepetitionsUsed > 1 ? obx.GetResponsibleObserver(1).IDNumber.Value : null,
+                                OperatorLogged = obx.ProducerSID?.Identifier?.Value,
+                                SecondValidationUserInAms = obx.ResponsibleObserverRepetitionsUsed > 2 ? obx.GetResponsibleObserver(2).IDNumber.Value : null,
+                                EditingField = obx.EquipmentInstanceIdentifierRepetitionsUsed > 0 ? obx.GetEquipmentInstanceIdentifier(0).EntityIdentifier.Value : null,
+                                EditOrQplOrAchitect = obx.EquipmentInstanceIdentifierRepetitionsUsed > 1 ? obx.GetEquipmentInstanceIdentifier(1).EntityIdentifier.Value : null,
+                                EmptyOrArchitect = obx.EquipmentInstanceIdentifierRepetitionsUsed > 2 ? obx.GetEquipmentInstanceIdentifier(2).EntityIdentifier.Value : null,
+                                InstrumentSerialNro = obx.EquipmentInstanceIdentifierRepetitionsUsed > 3 ? obx.GetEquipmentInstanceIdentifier(3).EntityIdentifier.Value : null,
+                                ProcessPathId = obx.EquipmentInstanceIdentifierRepetitionsUsed > 4 ? obx.GetEquipmentInstanceIdentifier(4).EntityIdentifier.Value : null,
+                                ProcessLaneId = obx.EquipmentInstanceIdentifierRepetitionsUsed > 5 ? obx.GetEquipmentInstanceIdentifier(5).EntityIdentifier.Value : null,
+                                ResultValidationDate = ParseHl7Date(obx.DateTimeOfTheAnalysis?.Time?.Value),
+                                InstrumentResultDate = ParseHl7Date(obx.DateTimeOfTheObservation?.Time?.Value),
+                                SecondResultValidationDate = ParseHl7Date(obx.EffectiveDateOfReferenceRange?.Time?.Value)
+                            };
+
+                            obxList.Add(obxInfo);
+                        }
+                        catch (Exception ex)
+                        {
+                            logger.Warn($"Error al parsear OBX dentro de ORDER[{j}] RESULT[{k}]: {ex.Message}");
+                        }
+
+                        // TCD
+                        var tcd = resultGroup.TCD;
                         if (tcd != null)
                         {
-                            // Obtener el número desde el campo SN correctamente
-                            string dilutionFactor = null;
-                            var sn = tcd.AutoDilutionFactor;
-                            if (sn != null && sn.Components.Length > 1)
-                            {
-                                var numberComponent = sn.Components[1] as NM; // SN.2 es el número
-                                dilutionFactor = numberComponent?.Value;
-                            }
-
-                            var tcdObj = new _TCD
+                            tcdList.Add(new _TCD
                             {
                                 UniversalServiceIdentifier = tcd.UniversalServiceIdentifier?.Identifier?.Value,
-                                DilutionFactor = dilutionFactor
-                            };
-
-                            tcdList.Add(tcdObj);
+                                DilutionFactor = (tcd.AutoDilutionFactor?.Components.Length > 1 && tcd.AutoDilutionFactor.Components[1] is NM nm) ? nm.Value : null
+                            });
                         }
-                    }
-                }
-            }
 
-            //Segmento INV
-            List<_INV> invList = new List<_INV>();
-
-            for (int i = 0; i < mensaje.SPECIMENRepetitionsUsed; i++)
-            {
-                var specimenGroup = mensaje.GetSPECIMEN(i);
-
-                for (int j = 0; j < specimenGroup.ORDERRepetitionsUsed; j++)
-                {
-                    var orderGroup = specimenGroup.GetORDER(j);
-
-                    int resultCount = orderGroup.RESULTRepetitionsUsed;
-                    for (int k = 0; k < resultCount; k++)
-                    {
-                        var resultGroup = orderGroup.GetRESULT(k);
-
-                        // Intenta obtener el segmento INV
-                        var invSegment = resultGroup.GetStructure("INV") as NHapi.Model.V25.Segment.INV;
-
-                        if (invSegment != null)
+                        // INV
+                        var inv = resultGroup.GetStructure("INV") as NHapi.Model.V25.Segment.INV;
+                        if (inv != null)
                         {
-                            var invObj = new _INV
+                            invList.Add(new _INV
                             {
-                                SubstanceId = invSegment.SubstanceIdentifier?.Identifier?.Value,
-
-                                // Solo tomamos la primera repetición del campo repeating INV-2
-                                SubstanceStatus = invSegment.SubstanceStatusRepetitionsUsed > 0
-                                    ? invSegment.GetSubstanceStatus(0)?.Identifier?.Value
-                                    : null,
-
-                                // Parte 3
-                                SubstanceType = invSegment.SubstanceType?.Identifier?.Value,
-                                PossibleValuesIdentifier = invSegment.SubstanceType?.Identifier?.Value,
-                                Text = invSegment.SubstanceType?.Text?.Value,
-                                Hl7ReferenceTable = invSegment.SubstanceType?.NameOfCodingSystem?.Value,
-
-                                InventoryContainerIdentifier = invSegment.InventoryContainerIdentifier?.Identifier?.Value,
-
-                                ExpirationDate = invSegment.ExpirationDateTime?.Time?.Value,
-                                FirstUsedDate = invSegment.FirstUsedDateTime?.Time?.Value,
-                                ManufacturerLotNumber = invSegment.ManufacturerLotNumber?.Value
-                            };
-
-                            invList.Add(invObj);
+                                SubstanceId = inv.SubstanceIdentifier?.Identifier?.Value,
+                                SubstanceStatus = inv.SubstanceStatusRepetitionsUsed > 0 ? inv.GetSubstanceStatus(0)?.Identifier?.Value : null,
+                                SubstanceType = inv.SubstanceType?.Identifier?.Value,
+                                PossibleValuesIdentifier = inv.SubstanceType?.Identifier?.Value,
+                                Text = inv.SubstanceType?.Text?.Value,
+                                Hl7ReferenceTable = inv.SubstanceType?.NameOfCodingSystem?.Value,
+                                InventoryContainerIdentifier = inv.InventoryContainerIdentifier?.Identifier?.Value,
+                                ExpirationDate = inv.ExpirationDateTime?.Time?.Value,
+                                FirstUsedDate = inv.FirstUsedDateTime?.Time?.Value,
+                                ManufacturerLotNumber = inv.ManufacturerLotNumber?.Value
+                            });
                         }
                     }
                 }
             }
 
-            //Segmento NTE
-
-            //Se convierte todos los segmentos en un JSON
-            OULR22 OulR22Parseado = new OULR22
+            var OulR22Parseado = new OULR22
             {
                 MSH = infoMSH,
                 PID = paciente,
                 SPM = muestras,
                 SAC = contenedores,
+                OBR = obrList,
                 OBX = obxList,
                 TCD = tcdList,
                 INV = invList
             };
 
-            var Json = new JsonSerializerOptions
-            {
-                WriteIndented = true, //Para formato bonito
-            };
-
+            var Json = new JsonSerializerOptions { WriteIndented = true };
             logger.Info("Mensaje OUL^R22 recibido y decodificado correctamente.");
             logger.Debug(JsonSerializer.Serialize(OulR22Parseado, Json));
             return JsonSerializer.Serialize(OulR22Parseado, Json);
@@ -533,6 +355,7 @@ namespace LaboratoryService_Api.Utilities
             public _PID PID { get; set; }
             public List<_SPM> SPM { get; set; }
             public List<_SAC> SAC { get; set; }
+            public List<_OBR> OBR { get; set; }
             public List<_OBX> OBX { get; set; }
             public List<_TCD> TCD { get; set; }
             public List<_INV> INV { get; set; }

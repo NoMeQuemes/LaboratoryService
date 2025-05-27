@@ -9,8 +9,10 @@ obj/
 *.suo
 
 # Archivos de log y temporales
+logs/
 *.log
 *.tmp
+nlog.config
 
 # Archivos de publicación
 *.publishsettings
@@ -32,3 +34,4 @@ appsettings.Production.json
 # Archivos ocultos de sistema operativo
 .DS_Store
 Thumbs.db
+/LaboratoryService_Api/nlog.config
