@@ -402,7 +402,8 @@ namespace LaboratoryService_Api.Utilities
                 WriteIndented = true, //Para formato bonito
             };
 
-            logger.Info($"Json del mensaje recibido: {JsonSerializer.Serialize(OulR22Parseado, Json)}");
+            logger.Info("Mensaje OUL^R22 recibido y decodificado correctamente.");
+            logger.Debug(JsonSerializer.Serialize(OulR22Parseado, Json));
             return JsonSerializer.Serialize(OulR22Parseado, Json);
         }
 
@@ -443,56 +444,68 @@ namespace LaboratoryService_Api.Utilities
             };
 
             //Segmento SAC
-            var sacList = new List<_SAC>();
+            List<_SAC> contenedores = new List<_SAC>();
+
             for (int i = 0; i < mensaje.SPECIMEN_CONTAINERRepetitionsUsed; i++)
             {
                 var containerGroup = mensaje.GetSPECIMEN_CONTAINER(i);
                 var sac = containerGroup.SAC;
 
-                // Código de evento (CK, SE, SS, AL, PT, SU, TU, SM, SD…)
-                string eventCode = sac.EquipmentContainerIdentifier?.EntityIdentifier?.Value;
+                string evento = sac.EquipmentContainerIdentifier?.EntityIdentifier?.Value; // SAC-5
 
-                // Campos base comunes a todos los tipos
-                var sacObj = new _SAC
+                _SAC contenedor = new _SAC
                 {
-                    AccessionIdentifier = sac.AccessionIdentifier?.EntityIdentifier?.Value,
-                    ContainerIdentifier = sac.ContainerIdentifier?.EntityIdentifier?.Value,
-                    EquipmentContainerIdentifier = eventCode,
-                    // dejamos nulos los opcionales y los llenamos en el switch
+                    AccessionIdentifier = sac.AccessionIdentifier?.EntityIdentifier?.Value,     // SAC-2
+                    ContainerIdentifier = sac.ContainerIdentifier?.EntityIdentifier?.Value,     // SAC-3
+                    EquipmentContainerIdentifier = evento,                                      // SAC-5
+                    SpecimenSource = sac.SpecimenSource?.SpecimenSourceNameOrCode?.Identifier?.Value, // SAC-6
+                    RegistrationDate = sac.RegistrationDateTime?.Time?.Value,                   // SAC-7
+                    ContainerStatus = sac.ContainerStatus?.Identifier?.Value,                   // SAC-8
+                    CarrierIdentifier = sac.CarrierIdentifier?.EntityIdentifier?.Value,         // SAC-10
+                    PositionInCarrier = $"{sac.PositionInCarrier?.Value1}.{sac.PositionInCarrier?.Value2}", // SAC-11
+                    Location = sac.LocationRepetitionsUsed > 0 ? sac.GetLocation(0).Identifier.Value : null, // SAC-15
+                    RackLocation = sac.LocationRepetitionsUsed > 0 ? sac.GetLocation(0).Identifier?.Value : null,
+                    BayNumber = sac.LocationRepetitionsUsed > 0 ? sac.GetLocation(0).Text?.Value : null,
+                    AvailableSpecimenVolume = sac.AvailableSpecimenVolume?.Value                // SAC-22
                 };
 
-                switch (eventCode)
+                switch (evento)
                 {
-                    case "CK":  // Sample Check-In
-                    case "SE":  // Sample Seen
-                        sacObj.RegistrationDate = sac.RegistrationDateTime?.Time?.Value;
+                    case "CK": // Sample Check-In
+                    case "SE": // Sample Seen
+                    case "HQ": // Host Query
+                    case "SM": // Sample Removed
+                    case "SD": // Sample Disposed
+                               // Solo campos comunes ya están asignados arriba
                         break;
 
-                    case "SS":  // Sample Storage
-                        sacObj.RegistrationDate = sac.RegistrationDateTime?.Time?.Value;
-                        sacObj.CarrierIdentifier = sac.CarrierIdentifier?.EntityIdentifier?.Value;
-                        sacObj.PositionInCarrier = (sac.GetField(11, 0) as NHapi.Base.Model.IPrimitive)?.Value;
-                        sacObj.Location = sac.LocationRepetitionsUsed > 0
-                                                      ? sac.GetLocation(0).Identifier.Value
-                                                      : null;
+                    case "SS": // Sample Storage
+                               // Ya incluye: CarrierIdentifier, PositionInCarrier, Location
                         break;
 
-                    case "AL":  // Aliquot Notification
-                        sacObj.RegistrationDate = sac.RegistrationDateTime?.Time?.Value;
-                        sacObj.SpecimenSource = sac.SpecimenSource?.ToString();
-                        sacObj.CarrierIdentifier = sac.CarrierIdentifier?.EntityIdentifier?.Value;
-                        sacObj.AvailableSpecimenVolume = sac.AvailableSpecimenVolume?.Value;
+                    case "AL": // Aliquot Notification
+                        contenedor.SpecimenSource = sac.SpecimenSource?.SpecimenSourceNameOrCode?.Identifier?.Value;
+                        contenedor.AvailableSpecimenVolume = sac.AvailableSpecimenVolume?.Value;
                         break;
 
-                    // …otros casos: PT, SU, TU, SM, SD…
+                    case "PT": // Primary Tube Info
+                        contenedor.ContainerStatus = sac.ContainerStatus?.Identifier?.Value;
+                        break;
+
+                    case "SU": // Sample Status Update
+                               // Campos ya mapeados en estructura base
+                        break;
+
+                    case "TU": // Test Status Update
+                        contenedor.SpecimenSource = sac.SpecimenSource?.SpecimenSourceNameOrCode?.Identifier?.Value;
+                        break;
+
                     default:
-                        // si viene un tipo no contemplado, al menos guardamos fecha y estado
-                        sacObj.RegistrationDate = sac.RegistrationDateTime?.Time?.Value;
-                        sacObj.ContainerStatus = sac.ContainerStatus?.Identifier?.Value;
+                        logger.Warn($"Tipo de evento no reconocido: {evento}");
                         break;
                 }
 
-                sacList.Add(sacObj);
+                contenedores.Add(contenedor);
             }
 
 
