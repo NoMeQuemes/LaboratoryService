@@ -18,11 +18,19 @@ namespace LaboratoryService_Api.Utilities
 
         public static string ObtenerTipoMensaje(string hl7)
         {
-            hl7 = hl7.Trim((char)0x0B, (char)0x1C, (char)0x0D);
-            PipeParser parser = new PipeParser();
-            var genericMessage = parser.Parse(hl7);
-            var mshSegment = genericMessage.GetStructure("MSH") as NHapi.Model.V25.Segment.MSH;
-            return mshSegment.MessageType.MessageCode.Value + "^" + mshSegment.MessageType.TriggerEvent.Value;
+            try
+            {
+                hl7 = hl7.Trim((char)0x0B, (char)0x1C, (char)0x0D);
+                PipeParser parser = new PipeParser();
+                var genericMessage = parser.Parse(hl7);
+                var mshSegment = genericMessage.GetStructure("MSH") as NHapi.Model.V25.Segment.MSH;
+                return $"{mshSegment.MessageType.MessageCode.Value}^{mshSegment.MessageType.TriggerEvent.Value}";
+            }
+            catch (Exception ex)
+            {
+                logger.Error($"Error al obtener tipo de mensaje HL7: {ex.Message}");
+                return null; // o lanzar una excepción propia si querés
+            }
         }
 
         public static string DecodificarOULR22(string hl7)
@@ -348,6 +356,83 @@ namespace LaboratoryService_Api.Utilities
             logger.Info($"Json del mensaje recibido: {JsonSerializer.Serialize(SsuUo3Parseado, Json)}");
             return JsonSerializer.Serialize(SsuUo3Parseado, Json);
         }
+
+        public static string ConstruirACK(string messageControlId)
+        {
+            var ack = new NHapi.Model.V25.Message.ACK();
+
+            // MSH
+            var msh = ack.MSH;
+            msh.FieldSeparator.Value = "|";
+            msh.EncodingCharacters.Value = "^~\\&";
+            msh.SendingApplication.NamespaceID.Value = "LIS";
+            msh.ReceivingApplication.NamespaceID.Value = "HOSTStandardHL7";
+            msh.DateTimeOfMessage.Time.Value = DateTime.Now.ToString("yyyyMMddHHmmss");
+            msh.MessageType.MessageCode.Value = "ACK";
+            msh.MessageType.TriggerEvent.Value = "";
+            msh.MessageControlID.Value = Guid.NewGuid().ToString().Substring(0, 20); // ID del ACK
+            msh.ProcessingID.ProcessingID.Value = "P";
+            msh.VersionID.VersionID.Value = "2.5";
+
+            // MSA
+            var msa = ack.MSA;
+            msa.AcknowledgmentCode.Value = "CA"; // CA = Correctamente Aceptado
+            msa.MessageControlID.Value = messageControlId;
+
+            // Serializar con MLLP
+            var parser = new PipeParser();
+            string ackStr = parser.Encode(ack);
+            string mllpWrapped = $"\x0B{ackStr}\x1C\r";
+
+            logger.Info("ACK generado correctamente");
+            logger.Debug(ackStr);
+
+            return mllpWrapped;
+        }
+
+        public static string ConstruirACKError(string messageControlId, string mensajeError, string acknowledgmentCode = "AE")
+        {
+            var ack = new NHapi.Model.V25.Message.ACK();
+
+            // MSH
+            var msh = ack.MSH;
+            msh.FieldSeparator.Value = "|";
+            msh.EncodingCharacters.Value = "^~\\&";
+            msh.SendingApplication.NamespaceID.Value = "LIS";
+            msh.ReceivingApplication.NamespaceID.Value = "HOSTStandardHL7";
+            msh.DateTimeOfMessage.Time.Value = DateTime.Now.ToString("yyyyMMddHHmmss");
+            msh.MessageType.MessageCode.Value = "ACK";
+            msh.MessageType.TriggerEvent.Value = "R01";
+            msh.MessageControlID.Value = Guid.NewGuid().ToString().Substring(0, 20);
+            msh.ProcessingID.ProcessingID.Value = "P";
+            msh.VersionID.VersionID.Value = "2.5";
+
+            // MSA
+            var msa = ack.MSA;
+            msa.AcknowledgmentCode.Value = acknowledgmentCode; // AE: Error de aplicación, AR: Rechazo
+            msa.MessageControlID.Value = messageControlId;
+            msa.TextMessage.Value = mensajeError;
+
+            // ERR
+            var err = ack.AddERR();
+            err.Severity.Value = "E"; // Error
+            err.HL7ErrorCode.Identifier.Value = "207"; // 207 = Application internal error
+            err.HL7ErrorCode.Text.Value = mensajeError;
+            err.HL7ErrorCode.NameOfCodingSystem.Value = "HL70357";
+
+            // Convertir a string con delimitadores MLLP
+            var parser = new PipeParser();
+            string ackString = parser.Encode(ack);
+            string mllpWrapped = $"\x0B{ackString}\x1C\r";
+
+            logger.Warn("ACK de error generado");
+            logger.Debug(ackString);
+
+            return mllpWrapped;
+        }
+
+
+
         //Objetos
         public class OULR22
         {

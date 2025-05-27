@@ -88,32 +88,42 @@ namespace LaboratoryService_Api.Utilities
                                             Debug.WriteLine($"Servidor: mensaje HL7 recibido:\n{hl7Message}");
                                             logger.Info($"Servidor: mensaje HL7 recibido: {hl7Message}");
 
-                                            string typeMessage = ParserHL7.ObtenerTipoMensaje(hl7Message);
-                                            string paciente = ParserHL7.DecodificarOULR22(hl7Message);
-                                            Debug.WriteLine($"Datos de el paciente: {paciente}");
-
-                                            // Construcción del mensaje ACK
-                                            string idHl7Message = ConvertHL7.ObtenerMessageControlId(hl7Message);
-                                            string fechaActual = DateTime.Now.ToString("yyyyMMddHHmmss");
-                                            string MSH = $"MSH|^~\\&|HOSTStandardHL7^5.2.0||LIS||{fechaActual}||ACK|MSG00001|P|2.5\x0D";
-                                            string MSA = $"MSA|CA|{idHl7Message}\x0D";
-
-                                            var ackBuilder = new StringBuilder();
-                                            ackBuilder.Append(MSH).Append(MSA);
-                                            string ackMessage = ackBuilder.ToString();
-                                            string mllpAck = $"{(char)0x0B}{ackMessage}{(char)0x1C}{(char)0x0D}";
-                                            byte[] ackBytes = Encoding.ASCII.GetBytes(mllpAck);
+                                            string idHl7Message = "UNKNOWN";
+                                            string respuesta = "";
 
                                             try
                                             {
-                                                if (client.Connected)
+                                                string tipoMensaje = ParserHL7.ObtenerTipoMensaje(hl7Message);
+
+                                                PipeParser parser = new PipeParser();
+                                                var parsedMsg = parser.Parse(hl7Message);
+                                                var msh = parsedMsg.GetStructure("MSH") as MSH;
+                                                idHl7Message = msh.MessageControlID.Value;
+
+                                                switch (tipoMensaje)
                                                 {
-                                                    stream.Write(ackBytes, 0, ackBytes.Length);
+                                                    case "OUL^R22":
+                                                        respuesta = ParserHL7.DecodificarOULR22(hl7Message);
+                                                        break;
+                                                    case "SSU^U03":
+                                                        respuesta = ParserHL7.DecodificarSSUUO3(hl7Message);
+                                                        break;
+                                                    default:
+                                                        throw new Exception($"Tipo de mensaje no soportado: {tipoMensaje}");
                                                 }
+
+                                                // Enviar ACK
+                                                string mllpAck = ParserHL7.ConstruirACK(idHl7Message);
+                                                byte[] ackBytes = Encoding.ASCII.GetBytes(mllpAck);
+                                                if (client.Connected) stream.Write(ackBytes, 0, ackBytes.Length);
                                             }
-                                            catch (ObjectDisposedException)
+                                            catch (Exception ex)
                                             {
-                                                logger.Warn("No se pudo escribir en el stream porque ya fue cerrado.");
+                                                logger.Error($"Error procesando mensaje HL7: {ex.Message}");
+
+                                                string nack = ParserHL7.ConstruirACKError(idHl7Message, ex.Message, "AE");
+                                                byte[] nackBytes = Encoding.ASCII.GetBytes(nack);
+                                                if (client.Connected) stream.Write(nackBytes, 0, nackBytes.Length);
                                             }
 
                                             messageStarted = false;
@@ -134,7 +144,7 @@ namespace LaboratoryService_Api.Utilities
                                 if (invalidMessageDetected)
                                 {
                                     string errorMessage = "ERROR|Mensaje no válido\r";
-                                    string mllpError = $"{(char)0x0B}{errorMessage}{(char)0x1C}{(char)0x0D}";
+                                    string mllpError = $"\x0B{errorMessage}\x1C\r";
                                     byte[] errorBytes = Encoding.ASCII.GetBytes(mllpError);
 
                                     try
